@@ -1,0 +1,230 @@
+export interface YggcScopeView {
+  name: string
+  description: string
+}
+
+export interface YggcProfileView {
+  id: string
+  name: string
+}
+
+export interface YggcClientView {
+  id: string
+  name: string
+  redirectUris: string[]
+  publicClient: boolean
+  enabled: boolean
+  createdAt: number
+  secret?: string
+}
+
+export interface YggcTokenView {
+  token: string
+  clientId: string
+  userId: string
+  nickname: string
+  profileId: string
+  profileName: string
+  scopes: string[]
+  issuedAt: number
+  expiresAt: number
+}
+
+export interface YggcClientPage {
+  records: YggcClientView[]
+  total: number
+}
+
+export interface YggcTokenPage {
+  records: YggcTokenView[]
+  total: number
+}
+
+export interface YggcAuthorizeContext {
+  client: { id: string, name: string }
+  scopes: YggcScopeView[]
+  profiles: YggcProfileView[]
+  requireProfileSelection: boolean
+  user: { id: string, nickname: string }
+}
+
+export interface YggcDeviceContext extends YggcAuthorizeContext {
+  status: string
+}
+
+export interface YggcGrantGroup {
+  clientId: string
+  clientName: string
+  clientEnabled: boolean
+  tokens: YggcTokenView[]
+}
+
+export interface YggcStats {
+  clients: number
+  tokens: number
+  sessions: number
+}
+
+export interface YggcStatus {
+  apiRoot: string
+  textureBaseUrl: string
+  accountSource: string
+  skinPluginEnabled: boolean
+  stats?: YggcStats
+  metadata?: Record<string, unknown>
+  endpoints?: string[]
+}
+
+export interface YggcEndpoint {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  path: string
+  note: string
+}
+
+/** 插件配置（对应原 yggdrasil-connect Option 配置项）。 */
+export interface YggcSettings {
+  uuidAlgorithm: string
+  tokenExpire: number
+  tokenRefreshExpire: number
+  tokensLimit: number
+  rateLimit: number
+  skinDomain: string
+  searchProfileMax: number
+  showConfigSection: boolean
+  enableAli: boolean
+  restoreApi: boolean
+  disableAuthserver: boolean
+  connectServerUrl: string
+  unionApiRoot: string
+  unionMemberKey: string
+  unionEnableUpdate: boolean
+  unionEnableOauth2: boolean
+  oauthAccessTtl: number
+  oauthRefreshTtl: number
+  oauthDeviceTtl: number
+  /** 认证服务器名称（meta.serverName），留空回退站点名 */
+  serverName: string
+  keyPairs?: {
+    texture?: YggcKeyPairInfo
+    token?: YggcKeyPairInfo
+    'union-oauth2'?: YggcKeyPairInfo
+  }
+  union?: YggcUnionLocalState
+}
+
+export interface YggcKeyPairInfo {
+  usage: string
+  exists: boolean
+  publicKey?: string
+  kid?: string
+}
+
+export interface YggcUnionDiagnosis {
+  apiRoot: string
+  memberKeyConfigured: boolean
+  reachable: boolean
+  status?: number
+  latencyMs?: number
+  body?: string
+  message: string
+}
+
+// ---- Union 联邦 ----
+
+/** Union 皮肤站列表条目（GET /serverlist → servers[]）。 */
+export interface YggcUnionServer {
+  code?: string
+  bs_root?: string
+}
+
+/** 跨站绑定条目（unmapped/byname 列表与 detail.bind 列表共用结构）。 */
+export interface YggcUnionBindEntry {
+  internal_id?: number
+  bind_mapped_name?: string
+  backend_scopes?: { self?: string }
+  backend?: string
+  uuid?: string
+  mapped_uuid?: string
+  /** 0 = 正在使用的绑定（主站） */
+  bind_status?: number
+}
+
+/** 单个角色的跨站详情（GET /profile/detail/{uuid}）。 */
+export interface YggcUnionProfileDetail {
+  internal_id?: number
+  name?: string
+  uuid?: string
+  mapped_uuid?: string
+  bind_mapped_name?: string
+  backend_scopes?: { self?: string }
+  backend?: string
+  bind?: YggcUnionBindEntry[]
+  bind_status?: number
+}
+
+/** 用户单个角色的跨站总览（后端 overview 组装）。 */
+export interface YggcUnionProfileOverview {
+  uuid: string
+  name: string
+  duplicateNames: YggcUnionBindEntry[]
+  detail: YggcUnionProfileDetail
+}
+
+/** 用户跨站角色总览（GET /me/union/overview）。 */
+export interface YggcUnionOverview {
+  profiles: YggcUnionProfileOverview[]
+  serverList: YggcUnionServer[]
+  securityLevel: unknown
+}
+
+/** 签名私钥同步状态（存于 union state 集合 privatekey 文档）。 */
+export interface YggcUnionPrivateKeyState {
+  version?: string | null
+  syncedAt?: number
+  source?: string
+}
+
+/** 本地联邦状态（不触发上游请求）。 */
+export interface YggcUnionLocalState {
+  privateKey: YggcUnionPrivateKeyState
+  privateKeySynced: boolean
+  serverList: {
+    servers?: YggcUnionServer[]
+    version?: string | null
+    syncedAt?: number
+  }
+  serverCount: number
+}
+
+/** 上游连通性（GET / 公告探测）。 */
+export interface YggcUnionUpstream {
+  reachable: boolean
+  status?: number
+  latencyMs?: number
+  response?: Record<string, unknown>
+}
+
+/** Union 状态总览（GET /admin/union/status）。 */
+export interface YggcUnionStatus extends YggcUnionLocalState {
+  apiRoot: string
+  memberKeyConfigured: boolean
+  upstream: YggcUnionUpstream
+}
+
+/** 从上游同步签名私钥的响应。 */
+export interface YggcUnionPrivateKeySyncResult {
+  privateKeyVersion?: string
+  syncedAt?: number
+  publicKey?: string
+  message?: string
+}
+
+/** 全量角色同步的响应。 */
+export interface YggcUnionSyncResult {
+  profileCount?: number
+  message?: string
+  [key: string]: unknown
+}
+
+/** Union 黑名单代理响应（上游原样透传，形状由 Union 主服务器决定）。 */
+export type YggcUnionBlacklistResult = Record<string, unknown>

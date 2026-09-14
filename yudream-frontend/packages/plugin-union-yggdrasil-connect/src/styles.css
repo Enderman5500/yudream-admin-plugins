@@ -1,0 +1,701 @@
+.yggc-plugin {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.yggc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.yggc-toolbar span {
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+.yggc-toolbar h2 {
+  margin: 2px 0 0;
+}
+
+.yggc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.yggc-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.yggc-home {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.yggc-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.yggc-card-content {
+  display: grid;
+  gap: 12px;
+}
+
+/* ---- 大屏双列自适应网格（配置页 / 联合黑名单页） ---- */
+
+.yggc-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.yggc-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.yggc-card-head__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.yggc-card-head__desc {
+  margin: 4px 0 0;
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+/* ---- MUA 状态页（flex 布局） ---- */
+
+.yggc-union-status-grid,
+.yggc-union-section-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.yggc-union-status-grid > *,
+.yggc-union-section-grid > * {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.yggc-pagination {
+  flex-basis: 100%;
+  flex-grow: 0;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1180px) {
+  .yggc-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yggc-union-status-grid > *,
+  .yggc-union-section-grid > * {
+    flex-basis: 100%;
+  }
+
+  .yggc-address-row,
+  .yggc-status-line,
+  .yggc-table-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.yggc-help,
+.yggc-muted {
+  margin: 0;
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+.yggc-address-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.yggc-address-row code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yggc-status-line {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.yggc-status-line:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.yggc-status-line span,
+.yggc-table-toolbar span {
+  margin: 0;
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+.yggc-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.yggc-table-toolbar > div {
+  display: grid;
+  gap: 3px;
+}
+
+.yggc-code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yggc-uri-list {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.yggc-uri-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yggc-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.yggc-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.yggc-filter-bar > :first-child {
+  flex: 1;
+  min-width: 220px;
+}
+
+.yggc-form {
+  display: grid;
+  gap: 14px;
+}
+
+.yggc-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.yggc-form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .yggc-form-grid.two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.yggc-input {
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--color-text-1);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+  outline: none;
+}
+
+.yggc-input:focus {
+  border-color: var(--color-primary);
+}
+
+/* ---- 授权确认 / 设备授权页 ---- */
+
+.yggc-consent-page {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.yggc-consent-head {
+  display: grid;
+  gap: 6px;
+}
+
+.yggc-consent-head p {
+  margin: 0;
+}
+
+.yggc-consent-head code {
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.yggc-consent-section {
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-1);
+}
+
+.yggc-consent-section__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.yggc-consent-scopes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yggc-consent-scopes li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.yggc-consent-scopes code {
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 8px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--color-text-2);
+  white-space: normal;
+  background: var(--color-fill-1, var(--color-bg-3));
+  border-radius: 6px;
+}
+
+.yggc-consent-scopes span {
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+.yggc-consent-profiles {
+  display: grid;
+  gap: 8px;
+}
+
+.yggc-consent-profile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--color-fill-1, var(--color-bg-3));
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+
+.yggc-consent-profile:hover {
+  border-color: var(--color-border-3, var(--color-primary));
+}
+
+.yggc-consent-profile:has(input:checked) {
+  border-color: var(--color-primary);
+}
+
+.yggc-consent-profile code {
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.yggc-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-1);
+}
+
+/* 授权结果（成功 / 拒绝） */
+.yggc-consent-result {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px;
+  background: var(--color-fill-1, var(--color-bg-3));
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+
+.yggc-consent-result__icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 18px;
+}
+
+.yggc-consent-result__body h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.yggc-consent-result__body p {
+  margin: 0;
+}
+
+.yggc-consent-result--approved {
+  border-color: rgb(var(--success-6, 0 180 42));
+}
+
+.yggc-consent-result--approved .yggc-consent-result__icon {
+  color: rgb(var(--success-6, 0 180 42));
+}
+
+.yggc-consent-result--denied .yggc-consent-result__icon {
+  color: var(--color-red, #e5484d);
+}
+
+.yggc-device-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.yggc-device-input input {
+  flex: 1;
+  min-width: 200px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ---- 我的授权 ---- */
+
+.yggc-grants {
+  gap: 14px;
+}
+
+.yggc-grant {
+  display: grid;
+  gap: 12px;
+}
+
+.yggc-grant-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yggc-grant-head code {
+  font-size: 12px;
+}
+
+.yggc-grant-tokens {
+  display: grid;
+  gap: 10px;
+}
+
+.yggc-grant-token {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+
+.yggc-grant-token-main {
+  display: grid;
+  gap: 4px;
+}
+
+/* ---- 仪表盘卡片 ---- */
+
+.yggc-dashboard-card {
+  display: flex;
+  /* 卡片根是外包层的 flex 子项：stretch + flex:1 已占满宽度和剩余高度，
+     再写 width/height:100% 会叠加 margin 使内容溢出被裁切。
+     外层高度由宿主仪表盘决定且通常偏紧，这里不再自设上下外边距抢高度。 */
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 16px;
+}
+
+/* 内容区承担收缩：高度不足时优先裁掉描述/提示，绝不裁到下方按钮行。 */
+.yggc-dashboard-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.yggc-dashboard-card__desc {
+  display: -webkit-box;
+  flex: 0 0 auto;
+  margin: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 1;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+}
+
+.yggc-dashboard-card__endpoint {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  color: var(--color-text-1);
+  text-align: left;
+  background: var(--color-fill-1, var(--color-bg-3, var(--color-bg-1)));
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+}
+
+.yggc-dashboard-card__endpoint:hover {
+  background: var(--color-fill-2, var(--color-bg-3, var(--color-bg-1)));
+  border-color: var(--color-border-3, var(--color-primary));
+}
+
+.yggc-dashboard-card__endpoint code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yggc-dashboard-card__copy {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-text-3);
+  font-size: 16px;
+}
+
+.yggc-dashboard-card__hint {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* FaIcon 根元素是 <i>，没有 .fa-icon 类名，这里直接选中子元素。 */
+.yggc-dashboard-card__hint > i {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 13px;
+}
+
+.yggc-dashboard-card__hint span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yggc-dashboard-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border-1);
+}
+
+/* 卡片高度不足时（由组件按实际高度切换）：优先保住地址框与按钮行。 */
+.yggc-dashboard-card.is-compact .yggc-dashboard-card__desc,
+.yggc-dashboard-card.is-compact .yggc-dashboard-card__hint {
+  display: none;
+}
+
+/* ---- 认证服务器地址页 ---- */
+
+.yggc-endpoint-hero {
+  display: grid;
+  gap: 12px;
+}
+
+.yggc-endpoint-hero h3 {
+  margin: 0;
+}
+
+.yggc-endpoint-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--color-bg-3, var(--color-bg-1));
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+
+.yggc-endpoint-box:hover,
+.yggc-endpoint-box:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.yggc-endpoint-box code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: break-all;
+}
+
+.yggc-endpoint-box__action {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+  color: var(--color-text-3);
+  font-size: 13px;
+}
+
+.yggc-endpoint-hint {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.yggc-endpoint-steps {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--color-text-2);
+  font-size: 13px;
+}
+
+/* ---- 拖拽添加 / SJMCL 按钮行 ---- */
+
+.yggc-dnd-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 地址框兼作拖拽按钮：光标提示可拖 */
+.yggc-grab {
+  cursor: grab;
+}
+
+.yggc-grab:active {
+  cursor: grabbing;
+}
+
+/* ---- 插件配置页 ---- */
+
+.yggc-diagnosis {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+
+.yggc-diagnosis-body {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--color-bg-3, var(--color-bg-1));
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+}
+
+.yggc-keybox {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--color-bg-3, var(--color-bg-1));
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+}
+
+/* ---- MUA 联邦页 ---- */

@@ -54,6 +54,9 @@
         <module>yudream-plugins/yudream-plugin-mc-pet</module>
         <module>yudream-plugins/yudream-plugin-neco-pixel</module>
         <module>yudream-plugins/yudream-plugin-mc-news</module>
+        <module>yudream-plugins/yudream-plugin-yggc</module>
+        <module>yudream-plugins/yudream-plugin-invite</module>
+        <module>yudream-plugins/yudream-plugin-mail</module>
         </modules>
 
     <dependencyManagement>
