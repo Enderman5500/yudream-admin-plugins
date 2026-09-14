@@ -11,6 +11,7 @@ import online.yudream.base.plugin.minecraft.application.dto.MinecraftServerStatu
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftStatusSnapshotDTO;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftSeasonOperation;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServer;
+import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServerTopology;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivity;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftEndpointStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftInheritanceRule;
@@ -20,6 +21,8 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerSeason;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftStatusSnapshot;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServerActivity;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -27,6 +30,11 @@ import java.util.Map;
 public class MinecraftServerAppAssembler {
 
     public MinecraftServerDTO toDTO(MinecraftServer server, MinecraftServerStatus status) {
+        return toDTO(server, status, null);
+    }
+
+    /** @param topology the proxy's reported server list, or {@code null} for a non-proxy server. */
+    public MinecraftServerDTO toDTO(MinecraftServer server, MinecraftServerStatus status, MinecraftServerTopology topology) {
         return new MinecraftServerDTO(
                 server.id(),
                 server.name(),
@@ -38,9 +46,27 @@ public class MinecraftServerAppAssembler {
                 server.currentSeason() == null ? null : toDTO(server.currentSeason()),
                 status == null ? null : toDTO(status),
                 server.map() == null ? null : toDTO(server.map()),
+                toDTO(topology),
                 server.createdAt(),
                 server.updatedAt()
         );
+    }
+
+    public MinecraftServerDTO.TopologyDTO toDTO(MinecraftServerTopology topology) {
+        if (topology == null) {
+            return null;
+        }
+        return new MinecraftServerDTO.TopologyDTO(
+                topology.proxy(),
+                topology.proxyVersion(),
+                topology.reportedAt(),
+                topology.servers().stream().map(this::toDTO).toList()
+        );
+    }
+
+    public MinecraftServerDTO.SubServerDTO toDTO(MinecraftSubServer server) {
+        return new MinecraftServerDTO.SubServerDTO(server.name(), server.address(), server.online(),
+                server.sensor(), server.defaultServer(), server.sort());
     }
 
     public MinecraftServerMapDTO toDTO(MinecraftServerMap map) {
@@ -63,6 +89,7 @@ public class MinecraftServerAppAssembler {
                 dto.currentSeason(),
                 dto.status(),
                 map,
+                dto.topology(),
                 dto.createdAt(),
                 dto.updatedAt()
         );
@@ -152,7 +179,22 @@ public class MinecraftServerAppAssembler {
                 activity.currentAfkSince(),
                 activity.lastJoinedAt(),
                 activity.lastQuitAt(),
-                activity.updatedAt()
+                activity.updatedAt(),
+                activity.subServers().values().stream().map(bucket -> toDTO(bucket, now)).toList()
+        );
+    }
+
+    public MinecraftPlayerActivityDTO.SubServerDTO toDTO(MinecraftSubServerActivity bucket, long now) {
+        return new MinecraftPlayerActivityDTO.SubServerDTO(
+                bucket.name(),
+                bucket.online(),
+                bucket.afk(),
+                bucket.onlineAt(now),
+                bucket.afkAt(now),
+                bucket.currentOnlineSince(),
+                bucket.currentAfkSince(),
+                bucket.lastJoinedAt(),
+                bucket.lastQuitAt()
         );
     }
 
