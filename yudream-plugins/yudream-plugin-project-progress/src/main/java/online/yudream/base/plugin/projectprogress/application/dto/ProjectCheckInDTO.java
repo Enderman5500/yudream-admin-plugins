@@ -24,6 +24,7 @@ public record ProjectCheckInDTO(
     }
 
     public record MinecraftEvidenceDTO(String serverId, String playerId, String playerName,
+                                       String subServer,
                                        long totalOnlineMillis, long totalAfkMillis, long effectiveOnlineMillis,
                                        long periodStart, long periodEnd,
                                        List<MinecraftSubServerDTO> subServers) {

@@ -24,6 +24,7 @@ public record ProjectCheckInRes(
     }
 
     public record MinecraftEvidenceRes(String serverId, String playerId, String playerName,
+                                       String subServer,
                                        long totalOnlineMillis, long totalAfkMillis, long effectiveOnlineMillis,
                                        long periodStart, long periodEnd,
                                        List<MinecraftSubServerRes> subServers) {

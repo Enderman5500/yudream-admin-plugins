@@ -609,7 +609,7 @@ public class ProjectProgressAppService {
         if (policy == null) {
             return ProjectMinecraftPolicy.disabled();
         }
-        return new ProjectMinecraftPolicy(Boolean.TRUE.equals(policy.enabled()), policy.serverId(),
+        return new ProjectMinecraftPolicy(Boolean.TRUE.equals(policy.enabled()), policy.serverId(), policy.subServer(),
                 intValue(policy.requiredOnlineMinutes(), 0), Boolean.TRUE.equals(policy.includeAfk()),
                 Boolean.TRUE.equals(policy.autoCheckInEnabled()));
     }
@@ -634,7 +634,11 @@ public class ProjectProgressAppService {
 
     private ProjectMinecraftServerOptionDTO toMinecraftServerOptionDTO(PluginMinecraftServer server) {
         return new ProjectMinecraftServerOptionDTO(server.id(), server.name(), server.enabled(),
-                server.currentSeasonId(), server.currentSeasonName());
+                server.currentSeasonId(), server.currentSeasonName(),
+                server.subServers().stream()
+                        .map(sub -> new ProjectMinecraftServerOptionDTO.ProjectMinecraftSubServerDTO(
+                                sub.name(), sub.address(), sub.online(), sub.sensor(), sub.defaultServer(), sub.sort()))
+                        .toList());
     }
 
     private List<String> emptyToMembers(List<String> candidates, ProjectProgressProject project) {

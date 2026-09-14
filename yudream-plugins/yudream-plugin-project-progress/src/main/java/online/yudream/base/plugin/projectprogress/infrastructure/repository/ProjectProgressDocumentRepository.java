@@ -362,6 +362,10 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("enabled", policy.enabled());
         document.put("serverId", policy.serverId());
+        // 只在绑定了子服时写：整服策略的文档与改造前逐字节一致。
+        if (policy.subServer() != null && !policy.subServer().isEmpty()) {
+            document.put("subServer", policy.subServer());
+        }
         document.put("requiredOnlineMinutes", policy.requiredOnlineMinutes());
         document.put("includeAfk", policy.includeAfk());
         document.put("autoCheckInEnabled", policy.autoCheckInEnabled());
@@ -397,6 +401,10 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
         document.put("serverId", minecraft.serverId());
         document.put("playerId", minecraft.playerId());
         document.put("playerName", minecraft.playerName());
+        // 判定所依据的子服；空表示整服口径，此时不写键。
+        if (!minecraft.subServer().isEmpty()) {
+            document.put("subServer", minecraft.subServer());
+        }
         document.put("totalOnlineMillis", minecraft.totalOnlineMillis());
         document.put("totalAfkMillis", minecraft.totalAfkMillis());
         document.put("effectiveOnlineMillis", minecraft.effectiveOnlineMillis());
@@ -522,6 +530,8 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
             return ProjectMinecraftPolicy.disabled();
         }
         return new ProjectMinecraftPolicy(bool(document, "enabled", false), string(document, "serverId"),
+                // subServer 是后加的键：老文档没有它，读成 null 即整服口径。
+                string(document, "subServer"),
                 integer(document, "requiredOnlineMinutes", 0), bool(document, "includeAfk", false),
                 bool(document, "autoCheckInEnabled", false));
     }
@@ -534,6 +544,7 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
     private ProjectMinecraftEvidence toMinecraftEvidence(Map<String, Object> document) {
         return document == null || document.isEmpty() ? null : new ProjectMinecraftEvidence(string(document, "serverId"),
                 string(document, "playerId"), string(document, "playerName"),
+                string(document, "subServer"),
                 number(document, "totalOnlineMillis", 0), number(document, "totalAfkMillis", 0),
                 number(document, "effectiveOnlineMillis", 0), number(document, "periodStart", 0), number(document, "periodEnd", 0),
                 subServerEvidenceList(document.get("subServers")));

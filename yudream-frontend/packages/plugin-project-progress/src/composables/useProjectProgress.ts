@@ -63,6 +63,7 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     minecraftPolicy: {
       enabled: false,
       serverId: '',
+      subServer: '',
       requiredOnlineMinutes: 30,
       includeAfk: false,
       autoCheckInEnabled: false,
@@ -750,7 +751,8 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     projectForm.reworkStatusCode = project.reworkStatusCode || ''
     projectForm.minCheckInIntervalMinutes = project.minCheckInIntervalMinutes
     projectForm.allowedCheckInTypes = [...project.allowedCheckInTypes]
-    projectForm.minecraftPolicy = { ...project.minecraftPolicy }
+    // 后端整服口径返回 null，表单统一用空串表示「不限子服」。
+    projectForm.minecraftPolicy = { ...project.minecraftPolicy, subServer: project.minecraftPolicy.subServer || '' }
     projectForm.notificationConnectionId = project.notificationConnectionId == null ? null : String(project.notificationConnectionId)
     projectForm.notificationChannelId = project.notificationChannelId || ''
     projectForm.enabled = project.enabled
@@ -951,6 +953,25 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     return projects.value.find(item => item.id === projectId)?.name || '未知项目'
   }
 
+  /** 该服务器已知的下游子服；单机服为空数组，表单据此隐藏子服选择。 */
+  function subServersOf(serverId?: string | null) {
+    if (!serverId) {
+      return []
+    }
+    return minecraftServers.value.find(item => item.id === serverId)?.subServers || []
+  }
+
+  /**
+   * 换服务器时清掉已选子服。
+   *
+   * 子服名只在它所属的服务器内有意义（两台代理都可能有 fabric），换服后留着旧值会既误导操作者、
+   * 又会让打卡去查一个不属于该服的子服。
+   */
+  function changeMinecraftServer(serverId: string) {
+    projectForm.minecraftPolicy.serverId = serverId
+    projectForm.minecraftPolicy.subServer = ''
+  }
+
   function serverLabel(serverId?: string | null) {
     if (!serverId) {
       return '未选择服务器'
@@ -995,6 +1016,8 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     memberStats,
     departments,
     minecraftServers,
+    subServersOf,
+    changeMinecraftServer,
     notificationConnections,
     usersById,
     selectedProjectId,
@@ -1092,6 +1115,7 @@ function defaultProjectForm(): ProjectForm {
     minecraftPolicy: {
       enabled: false,
       serverId: '',
+      subServer: '',
       requiredOnlineMinutes: 30,
       includeAfk: false,
       autoCheckInEnabled: false,

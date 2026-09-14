@@ -37,8 +37,10 @@ public class ProjectProgressMinecraftService {
         }
         PluginMinecraftPlayerActivity activity = matchActivity(policy.serverId(), userId)
                 .orElseThrow(() -> new IllegalArgumentException("未找到当前用户的 Minecraft 在线记录"));
+        // 绑定了子服就只按那台子服算：整服口径会把玩家在多台子服上的时间加在一起。
         PluginMinecraftOnlineWindow window = minecraft()
-                .flatMap(service -> service.minecraftOnlineWindow(policy.serverId(), activity.playerId(), periodStart, periodEnd))
+                .flatMap(service -> service.minecraftOnlineWindow(policy.serverId(), activity.playerId(),
+                        policy.scopedToSubServer() ? policy.subServer() : "", periodStart, periodEnd))
                 .orElseThrow(() -> new IllegalArgumentException("Minecraft activity events cannot calculate this check-in period"));
         long effective = policy.includeAfk() ? window.onlineMillis() : window.effectiveOnlineMillis();
         long requiredMillis = policy.requiredOnlineMinutes() * 60_000L;
@@ -46,6 +48,7 @@ public class ProjectProgressMinecraftService {
             throw new IllegalArgumentException("Minecraft 在线时长未达到自动打卡要求");
         }
         return new ProjectMinecraftEvidence(policy.serverId(), activity.playerId(), activity.playerName(),
+                policy.scopedToSubServer() ? policy.subServer() : "",
                 window.onlineMillis(), window.afkMillis(), effective, periodStart, periodEnd,
                 subServerEvidence(policy.serverId(), activity.playerId()));
     }

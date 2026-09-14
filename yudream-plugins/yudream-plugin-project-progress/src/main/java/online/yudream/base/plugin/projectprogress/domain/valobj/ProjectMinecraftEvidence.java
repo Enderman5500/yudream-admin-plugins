@@ -7,13 +7,15 @@ import java.util.List;
 /**
  * 一次 Minecraft 在线时长打卡所留存的证据。
  *
- * <p>前三个 millis 字段是打卡**周期内**的窗口值，达标判断只看它们。{@code subServers} 是该玩家
- * 在各子服上的**累计**明细，只作附注：两种口径不同，不能相加，也不能互相替代。
+ * <p>前三个 millis 字段是打卡**周期内**的窗口值，达标判断只看它们；{@code subServer} 记录这些
+ * 窗口值是按哪台子服算的（空表示整服口径），{@code subServers} 是该玩家在各子服上的**累计**明细，
+ * 只作附注：两种口径不同，不能相加，也不能互相替代。
  */
 public record ProjectMinecraftEvidence(
         String serverId,
         String playerId,
         String playerName,
+        String subServer,
         long totalOnlineMillis,
         long totalAfkMillis,
         long effectiveOnlineMillis,
@@ -26,6 +28,7 @@ public record ProjectMinecraftEvidence(
         serverId = serverId == null ? "" : serverId.trim();
         playerId = playerId == null ? "" : playerId.trim();
         playerName = playerName == null ? "" : playerName.trim();
+        subServer = subServer == null ? "" : subServer.trim();
         totalOnlineMillis = Math.max(totalOnlineMillis, 0);
         totalAfkMillis = Math.max(totalAfkMillis, 0);
         effectiveOnlineMillis = Math.max(effectiveOnlineMillis, 0);
