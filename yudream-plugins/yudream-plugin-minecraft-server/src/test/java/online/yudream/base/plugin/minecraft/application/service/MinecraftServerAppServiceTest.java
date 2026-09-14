@@ -1,6 +1,8 @@
 package online.yudream.base.plugin.minecraft.application.service;
 
+import online.yudream.base.plugin.minecraft.api.PluginMinecraftOnlineWindow;
 import online.yudream.base.plugin.minecraft.api.PluginMinecraftPlayerActivity;
+import online.yudream.base.plugin.minecraft.api.PluginMinecraftSubServer;
 import online.yudream.base.plugin.minecraft.api.PluginMinecraftSubServerActivity;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerEventCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerSnapshotCmd;
@@ -8,10 +10,12 @@ import online.yudream.base.plugin.minecraft.application.dto.MinecraftServerDTO;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivity;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivityEvent;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServer;
+import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServerTopology;
 import online.yudream.base.plugin.minecraft.domain.repo.MinecraftServerRepository;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerEndpoint;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerSeason;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
 import online.yudream.base.plugin.minecraft.infrastructure.service.MinecraftStatusService;
 import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.system.FrameworkServices;
@@ -32,9 +36,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -166,7 +173,7 @@ class MinecraftServerAppServiceTest {
     }
 
     @Test
-    void groupedSnapshotClosesEveryListedSubServerInOneWrite() {
+    void groupedSnapshotSavesTheActivityOnceAndRecordsOneEventPerClosedSubServer() {
         MinecraftPlayerActivity online = MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", BASE)
                 .join("fabric", "Steve", BASE)
                 .join("paper", "Steve", BASE + 1_000);
@@ -176,9 +183,18 @@ class MinecraftServerAppServiceTest {
 
         ArgumentCaptor<MinecraftPlayerActivity> saved = ArgumentCaptor.forClass(MinecraftPlayerActivity.class);
         verify(repository).savePlayerActivity(saved.capture());
-        verify(repository).savePlayerActivityEvent(any());
         assertFalse(saved.getValue().online());
         assertEquals(5_000 + 4_000, saved.getValue().totalOnlineMillis());
+
+        // 收尾事件按子服逐条写。一条不分子服的收尾事件也能参与任意子服的回放，但那样就分不清关掉的
+        // 是哪台子服，回放「fabric 这段待了多久」时会算错。
+        ArgumentCaptor<MinecraftPlayerActivityEvent> events =
+                ArgumentCaptor.forClass(MinecraftPlayerActivityEvent.class);
+        verify(repository, times(2)).savePlayerActivityEvent(events.capture());
+        assertEquals(List.of("fabric", "paper"), events.getAllValues().stream()
+                .map(MinecraftPlayerActivityEvent::subServer).sorted().toList());
+        assertTrue(events.getAllValues().stream()
+                .allMatch(event -> event.type() == MinecraftPlayerActivityEvent.Type.SERVER_SNAPSHOT));
     }
 
     @Test
@@ -307,6 +323,125 @@ class MinecraftServerAppServiceTest {
                 () -> service.downloadMap("server-1", true, true));
         assertEquals("请使用网盘链接下载", error.getMessage());
         verify(files, never()).get(any());
+    }
+
+    // ------------------------------------------------------------------ 按子服的时间窗
+
+    /** 一次 fabric -> paper 的换服：四段事件，两个互不重叠的区间。 */
+    private void stubFabricThenPaperSession(String playerId) {
+        when(repository.findPlayerActivity("server-1", playerId))
+                .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", playerId, "Steve", BASE)));
+        when(repository.listPlayerActivityEvents(eq("server-1"), eq(playerId), anyInt(), anyInt()))
+                .thenReturn(List.of(
+                        MinecraftPlayerActivityEvent.create("server-1", playerId, "Steve", "fabric",
+                                MinecraftPlayerActivityEvent.Type.JOIN, BASE + 10_000),
+                        MinecraftPlayerActivityEvent.create("server-1", playerId, "Steve", "fabric",
+                                MinecraftPlayerActivityEvent.Type.QUIT, BASE + 40_000),
+                        MinecraftPlayerActivityEvent.create("server-1", playerId, "Steve", "paper",
+                                MinecraftPlayerActivityEvent.Type.JOIN, BASE + 60_000),
+                        MinecraftPlayerActivityEvent.create("server-1", playerId, "Steve", "paper",
+                                MinecraftPlayerActivityEvent.Type.QUIT, BASE + 80_000)));
+    }
+
+    @Test
+    void onlineWindowWithoutASubServerCountsEverySubServer() {
+        stubFabricThenPaperSession("player-1");
+
+        PluginMinecraftOnlineWindow window = service
+                .minecraftOnlineWindow("server-1", "player-1", BASE, BASE + 100_000)
+                .orElseThrow();
+
+        assertEquals(30_000 + 20_000, window.onlineMillis());
+    }
+
+    @Test
+    void onlineWindowScopedToOneSubServerIgnoresTheOthers() {
+        stubFabricThenPaperSession("player-1");
+
+        PluginMinecraftOnlineWindow fabric = service
+                .minecraftOnlineWindow("server-1", "player-1", "fabric", BASE, BASE + 100_000)
+                .orElseThrow();
+        PluginMinecraftOnlineWindow paper = service
+                .minecraftOnlineWindow("server-1", "player-1", "paper", BASE, BASE + 100_000)
+                .orElseThrow();
+
+        assertEquals(30_000, fabric.onlineMillis());
+        assertEquals(20_000, paper.onlineMillis());
+    }
+
+    @Test
+    void onlineWindowScopedToOneSubServerClipsToTheSubServerInterval() {
+        stubFabricThenPaperSession("player-1");
+
+        // 窗口只覆盖 paper 那一段的一半：fabric 的区间在窗口开始前就结束了，不计入。
+        PluginMinecraftOnlineWindow paper = service
+                .minecraftOnlineWindow("server-1", "player-1", "paper", BASE + 60_000, BASE + 70_000)
+                .orElseThrow();
+
+        assertEquals(10_000, paper.onlineMillis());
+    }
+
+    /**
+     * 整服级别的收尾（没有子服维度）必须能关掉某个子服上开着的区间。
+     *
+     * <p>否则一次服务端离线就会让该子服的区间一直开到窗口末尾，时长被严重高估。
+     */
+    @Test
+    void aWholeServerCloseStillClosesAnOpenSubServerInterval() {
+        when(repository.findPlayerActivity("server-1", "player-1"))
+                .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", BASE)));
+        when(repository.listPlayerActivityEvents(eq("server-1"), eq("player-1"), anyInt(), anyInt()))
+                .thenReturn(List.of(
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
+                                MinecraftPlayerActivityEvent.Type.JOIN, BASE + 10_000),
+                        // 服务端离线：整服事件，不指明子服。
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve",
+                                MinecraftPlayerActivityEvent.Type.SERVER_OFFLINE, BASE + 25_000)));
+
+        PluginMinecraftOnlineWindow fabric = service
+                .minecraftOnlineWindow("server-1", "player-1", "fabric", BASE, BASE + 600_000)
+                .orElseThrow();
+
+        assertEquals(15_000, fabric.onlineMillis());
+    }
+
+    @Test
+    void emptySubServerFilterIsTheWholeServerCount() {
+        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
+                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer(""));
+        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "",
+                MinecraftPlayerActivityEvent.Type.QUIT, BASE).appliesToSubServer("fabric"));
+        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
+                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer("fabric"));
+        assertFalse(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "paper",
+                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer("fabric"));
+    }
+
+    // ------------------------------------------------------------------ 子服列表
+
+    @Test
+    void subServersComeFromTheReportedTopology() {
+        when(repository.findTopology("server-1")).thenReturn(Optional.of(new MinecraftServerTopology(
+                "server-1", "velocity", "3.5.0", BASE + 1_000,
+                List.of(new MinecraftSubServer("fabric", "/127.0.0.1:25566", 1, true, true, 0),
+                        new MinecraftSubServer("paper", "/127.0.0.1:25567", 0, true, false, 1)))));
+
+        List<PluginMinecraftSubServer> subServers = service.minecraftSubServers("server-1");
+
+        assertEquals(List.of("fabric", "paper"), subServers.stream().map(PluginMinecraftSubServer::name).toList());
+        assertTrue(subServers.get(0).defaultServer());
+        assertFalse(subServers.get(1).defaultServer());
+        assertTrue(subServers.get(0).sensor());
+    }
+
+    /** 单机服（独立 Fabric / Bukkit）没有拓扑，界面据此不显示子服选择。 */
+    @Test
+    void subServersAreEmptyWhenThereIsNoTopology() {
+        when(repository.findTopology("server-1")).thenReturn(Optional.empty());
+
+        assertTrue(service.minecraftSubServers("server-1").isEmpty());
+        assertTrue(service.minecraftSubServers("").isEmpty());
+        assertTrue(service.minecraftSubServers(null).isEmpty());
     }
 
     // ------------------------------------------------------------------ helpers

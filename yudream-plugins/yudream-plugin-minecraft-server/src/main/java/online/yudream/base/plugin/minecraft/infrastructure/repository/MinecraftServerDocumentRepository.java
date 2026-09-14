@@ -436,6 +436,10 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         document.put("serverId", event.serverId());
         document.put("playerId", event.playerId());
         document.put("playerName", event.playerName());
+        // 只在有子服维度时写这个键：整服事件的文档与改造前逐字节一致，也让旧的读取路径不受影响。
+        if (!event.subServer().isEmpty()) {
+            document.put("subServer", event.subServer());
+        }
         document.put("type", event.type().name());
         document.put("occurredAt", event.occurredAt());
         return document;
@@ -669,9 +673,12 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
     }
 
     private MinecraftPlayerActivityEvent toPlayerActivityEvent(Map<String, Object> document) {
+        // subServer 是后加的键，改造之前的事件没有它：string(...) 对缺失键返回空串，
+        // 正好等价于「这条事件没有子服维度」。
         return new MinecraftPlayerActivityEvent(
                 string(document, "id"), string(document, "serverId"), string(document, "playerId"),
-                string(document, "playerName"), MinecraftPlayerActivityEvent.Type.valueOf(string(document, "type")),
+                string(document, "playerName"), string(document, "subServer"),
+                MinecraftPlayerActivityEvent.Type.valueOf(string(document, "type")),
                 number(document, "occurredAt", 0L)
         );
     }
