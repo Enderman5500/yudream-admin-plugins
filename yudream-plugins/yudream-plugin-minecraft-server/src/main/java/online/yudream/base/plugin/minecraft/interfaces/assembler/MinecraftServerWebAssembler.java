@@ -59,7 +59,8 @@ public class MinecraftServerWebAssembler {
         return new MinecraftPlayerEventCmd(
                 textOr(request.playerId(), request.uuid()),
                 textOr(request.playerName(), request.name()),
-                request.eventAt()
+                request.eventAt(),
+                request.server()
         );
     }
 
@@ -67,11 +68,22 @@ public class MinecraftServerWebAssembler {
         return new MinecraftPlayerSnapshotCmd(
                 request.observedAt(),
                 request.players() == null ? java.util.List.of() : request.players().stream()
-                        .map(player -> new MinecraftPlayerSnapshotCmd.Player(
-                                textOr(player.playerId(), player.uuid()),
-                                textOr(player.playerName(), player.name())))
+                        .map(this::toCmd)
+                        .toList(),
+                request.servers() == null ? java.util.List.of() : request.servers().stream()
+                        .map(server -> new MinecraftPlayerSnapshotCmd.Server(
+                                server.name(),
+                                server.players() == null ? java.util.List.of() : server.players().stream()
+                                        .map(this::toCmd)
+                                        .toList()))
                         .toList()
         );
+    }
+
+    private MinecraftPlayerSnapshotCmd.Player toCmd(MinecraftPlayerSnapshotRequest.Player player) {
+        return new MinecraftPlayerSnapshotCmd.Player(
+                textOr(player.playerId(), player.uuid()),
+                textOr(player.playerName(), player.name()));
     }
 
     public MinecraftServerRes toRes(MinecraftServerDTO dto) {
@@ -157,7 +169,10 @@ public class MinecraftServerWebAssembler {
     public MinecraftPlayerActivityRes toRes(MinecraftPlayerActivityDTO dto) {
         return new MinecraftPlayerActivityRes(dto.serverId(), dto.playerId(), dto.playerName(), dto.online(), dto.afk(),
                 dto.totalOnlineMillis(), dto.totalAfkMillis(), dto.currentOnlineSince(), dto.currentAfkSince(),
-                dto.lastJoinedAt(), dto.lastQuitAt(), dto.updatedAt());
+                dto.lastJoinedAt(), dto.lastQuitAt(), dto.updatedAt(),
+                dto.subServers().stream().map(sub -> new MinecraftPlayerActivityRes.SubServerRes(
+                        sub.name(), sub.online(), sub.afk(), sub.onlineMillis(), sub.afkMillis(),
+                        sub.currentOnlineSince(), sub.currentAfkSince(), sub.lastJoinedAt(), sub.lastQuitAt())).toList());
     }
 
     private MinecraftServerSaveCmd.Endpoint toCmd(MinecraftServerSaveRequest.Endpoint request) {

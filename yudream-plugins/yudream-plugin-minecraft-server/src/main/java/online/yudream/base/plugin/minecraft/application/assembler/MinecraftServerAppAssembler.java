@@ -22,6 +22,7 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftStatusSnapshot;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServerActivity;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -178,7 +179,22 @@ public class MinecraftServerAppAssembler {
                 activity.currentAfkSince(),
                 activity.lastJoinedAt(),
                 activity.lastQuitAt(),
-                activity.updatedAt()
+                activity.updatedAt(),
+                activity.subServers().values().stream().map(bucket -> toDTO(bucket, now)).toList()
+        );
+    }
+
+    public MinecraftPlayerActivityDTO.SubServerDTO toDTO(MinecraftSubServerActivity bucket, long now) {
+        return new MinecraftPlayerActivityDTO.SubServerDTO(
+                bucket.name(),
+                bucket.online(),
+                bucket.afk(),
+                bucket.onlineAt(now),
+                bucket.afkAt(now),
+                bucket.currentOnlineSince(),
+                bucket.currentAfkSince(),
+                bucket.lastJoinedAt(),
+                bucket.lastQuitAt()
         );
     }
 

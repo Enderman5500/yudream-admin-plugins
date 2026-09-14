@@ -6,6 +6,7 @@ import online.yudream.base.plugin.minecraft.api.PluginMinecraftOnlineWindow;
 import online.yudream.base.plugin.minecraft.api.PluginMinecraftPlayerActivity;
 import online.yudream.base.plugin.minecraft.api.PluginMinecraftServer;
 import online.yudream.base.plugin.minecraft.api.PluginMinecraftService;
+import online.yudream.base.plugin.minecraft.api.PluginMinecraftSubServerActivity;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerEventCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerSnapshotCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftSeasonOpenCmd;
@@ -33,6 +34,7 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerSeason;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServerActivity;
 import online.yudream.base.plugin.spi.system.storage.PluginFileStore;
 import online.yudream.base.plugin.spi.system.storage.PluginStoredFile;
 import java.io.ByteArrayInputStream;
@@ -446,7 +448,7 @@ public class MinecraftServerAppService implements PluginMinecraftService {
         requireServer(serverId);
         synchronized (playerActivityLock) {
             long eventAt = eventAt(cmd);
-            MinecraftPlayerActivity activity = activity(serverId, cmd).join(cmd.playerName(), eventAt);
+            MinecraftPlayerActivity activity = activity(serverId, cmd).join(cmd.subServer(), cmd.playerName(), eventAt);
             recordActivityEvent(serverId, cmd, MinecraftPlayerActivityEvent.Type.JOIN, eventAt);
             return assembler.toDTO(repository.savePlayerActivity(activity), System.currentTimeMillis());
         }
@@ -456,7 +458,7 @@ public class MinecraftServerAppService implements PluginMinecraftService {
         requireServer(serverId);
         synchronized (playerActivityLock) {
             long eventAt = eventAt(cmd);
-            MinecraftPlayerActivity activity = activity(serverId, cmd).quit(cmd.playerName(), eventAt);
+            MinecraftPlayerActivity activity = activity(serverId, cmd).quit(cmd.subServer(), cmd.playerName(), eventAt);
             recordActivityEvent(serverId, cmd, MinecraftPlayerActivityEvent.Type.QUIT, eventAt);
             return assembler.toDTO(repository.savePlayerActivity(activity), System.currentTimeMillis());
         }
@@ -466,7 +468,7 @@ public class MinecraftServerAppService implements PluginMinecraftService {
         requireServer(serverId);
         synchronized (playerActivityLock) {
             long eventAt = eventAt(cmd);
-            MinecraftPlayerActivity activity = activity(serverId, cmd).startAfk(cmd.playerName(), eventAt);
+            MinecraftPlayerActivity activity = activity(serverId, cmd).startAfk(cmd.subServer(), cmd.playerName(), eventAt);
             recordActivityEvent(serverId, cmd, MinecraftPlayerActivityEvent.Type.AFK_START, eventAt);
             return assembler.toDTO(repository.savePlayerActivity(activity), System.currentTimeMillis());
         }
@@ -476,15 +478,31 @@ public class MinecraftServerAppService implements PluginMinecraftService {
         requireServer(serverId);
         synchronized (playerActivityLock) {
             long eventAt = eventAt(cmd);
-            MinecraftPlayerActivity activity = activity(serverId, cmd).endAfk(cmd.playerName(), eventAt);
+            MinecraftPlayerActivity activity = activity(serverId, cmd).endAfk(cmd.subServer(), cmd.playerName(), eventAt);
             recordActivityEvent(serverId, cmd, MinecraftPlayerActivityEvent.Type.AFK_END, eventAt);
             return assembler.toDTO(repository.savePlayerActivity(activity), System.currentTimeMillis());
         }
     }
 
+    /**
+     * 按权威名册对账在线玩家。
+     *
+     * <p>分组形态下对账是<b>子服维度</b>的：只为本次上报真正列出的子服收尾，否则一份 paper 的
+     * 快照会把 fabric 上的人全部关掉。扁平形态保持改动前的整服语义。
+     *
+     * @return 本次上报的名册人数
+     */
     public int reconcilePlayerSnapshot(String serverId, MinecraftPlayerSnapshotCmd cmd) {
         requireServer(serverId);
         long observedAt = normalizeTimestamp(cmd.observedAt());
+        if (cmd.grouped()) {
+            return reconcileGroupedSnapshot(serverId, cmd, observedAt);
+        }
+        return reconcileFlatSnapshot(serverId, cmd, observedAt);
+    }
+
+    /** 扁平快照：没有子服维度，整台服务器的在线玩家都要在名册里，语义与改动前一致。 */
+    private int reconcileFlatSnapshot(String serverId, MinecraftPlayerSnapshotCmd cmd, long observedAt) {
         Map<String, MinecraftPlayerSnapshotCmd.Player> reported = cmd.players().stream()
                 .collect(Collectors.toMap(
                         player -> requireText(player.playerId(), "玩家 ID 不能为空"),
@@ -513,6 +531,65 @@ public class MinecraftServerAppService implements PluginMinecraftService {
             }
         }
         return cmd.players().size();
+    }
+
+    /**
+     * 分组快照：每个列出的子服独立对账。
+     *
+     * <p>一份只列出 paper 的上报不会碰 fabric 上的任何人；列出的子服即使名册为空也会把它上面
+     * 的人关掉，这正是“该子服现在没人”的表达方式。
+     */
+    private int reconcileGroupedSnapshot(String serverId, MinecraftPlayerSnapshotCmd cmd, long observedAt) {
+        Map<String, Map<String, MinecraftPlayerSnapshotCmd.Player>> reported = new LinkedHashMap<>();
+        for (MinecraftPlayerSnapshotCmd.Server server : cmd.servers()) {
+            Map<String, MinecraftPlayerSnapshotCmd.Player> roster = reported.computeIfAbsent(
+                    server.subServer(), key -> new LinkedHashMap<>());
+            for (MinecraftPlayerSnapshotCmd.Player player : server.players()) {
+                roster.putIfAbsent(requireText(player.playerId(), "玩家 ID 不能为空"), player);
+            }
+        }
+        synchronized (playerActivityLock) {
+            for (MinecraftPlayerActivity activity : allStoredPlayerActivities(serverId)) {
+                if (observedAt < activity.updatedAt()) {
+                    continue;
+                }
+                MinecraftPlayerActivity current = activity;
+                boolean closed = false;
+                for (Map.Entry<String, Map<String, MinecraftPlayerSnapshotCmd.Player>> entry : reported.entrySet()) {
+                    MinecraftSubServerActivity bucket = current.subServers().get(entry.getKey());
+                    if (bucket == null || !bucket.online()) {
+                        continue;
+                    }
+                    if (entry.getValue().containsKey(current.playerId())) {
+                        continue;
+                    }
+                    current = current.quit(entry.getKey(), current.playerName(), observedAt);
+                    closed = true;
+                }
+                if (closed) {
+                    repository.savePlayerActivityEvent(MinecraftPlayerActivityEvent.create(
+                            serverId, activity.playerId(), activity.playerName(),
+                            MinecraftPlayerActivityEvent.Type.SERVER_SNAPSHOT, observedAt));
+                    repository.savePlayerActivity(current);
+                }
+            }
+            for (Map.Entry<String, Map<String, MinecraftPlayerSnapshotCmd.Player>> entry : reported.entrySet()) {
+                for (MinecraftPlayerSnapshotCmd.Player player : entry.getValue().values()) {
+                    MinecraftPlayerActivity activity = repository.findPlayerActivity(serverId, player.playerId())
+                            .orElseGet(() -> MinecraftPlayerActivity.empty(
+                                    serverId, player.playerId(), player.playerName(), observedAt));
+                    MinecraftSubServerActivity bucket = activity.subServers().get(entry.getKey());
+                    if (bucket != null && bucket.online()) {
+                        continue;
+                    }
+                    repository.savePlayerActivityEvent(MinecraftPlayerActivityEvent.create(
+                            serverId, player.playerId(), player.playerName(),
+                            MinecraftPlayerActivityEvent.Type.JOIN, observedAt));
+                    repository.savePlayerActivity(activity.join(entry.getKey(), player.playerName(), observedAt));
+                }
+            }
+        }
+        return reported.values().stream().mapToInt(Map::size).sum();
     }
 
     public MinecraftPageDTO<MinecraftPlayerActivityDTO> playerActivities(String serverId, int page, int size) {
@@ -561,6 +638,38 @@ public class MinecraftServerAppService implements PluginMinecraftService {
     public List<PluginMinecraftPlayerActivity> minecraftPlayerActivities(String serverId, int page, int size) {
         return playerActivities(serverId, page, size).records().stream()
                 .map(this::toPluginActivity)
+                .toList();
+    }
+
+    /**
+     * 玩家在各子服上的时长拆分。
+     *
+     * <p>新增的读取方法：{@link #minecraftPlayerActivities} 仍然返回跨子服合计，本方法返回明细，
+     * 既有消费方（周目继承、活动证明）的签名与语义不变。
+     */
+    @Override
+    public List<PluginMinecraftSubServerActivity> minecraftSubServerActivities(String serverId, String playerId) {
+        if (serverId == null || serverId.isBlank() || playerId == null || playerId.isBlank()) {
+            return List.of();
+        }
+        MinecraftPlayerActivity activity = repository.findPlayerActivity(serverId, playerId).orElse(null);
+        if (activity == null) {
+            return List.of();
+        }
+        long now = System.currentTimeMillis();
+        return activity.subServers().values().stream()
+                .map(bucket -> new PluginMinecraftSubServerActivity(
+                        activity.serverId(),
+                        activity.playerId(),
+                        bucket.name(),
+                        bucket.online(),
+                        bucket.afk(),
+                        bucket.onlineAt(now),
+                        bucket.afkAt(now),
+                        bucket.currentOnlineSince(),
+                        bucket.currentAfkSince(),
+                        bucket.lastJoinedAt(),
+                        bucket.lastQuitAt()))
                 .toList();
     }
 
@@ -659,7 +768,8 @@ public class MinecraftServerAppService implements PluginMinecraftService {
     private void closeActivity(MinecraftPlayerActivity activity, MinecraftPlayerActivityEvent.Type type, long occurredAt) {
         repository.savePlayerActivityEvent(MinecraftPlayerActivityEvent.create(
                 activity.serverId(), activity.playerId(), activity.playerName(), type, occurredAt));
-        repository.savePlayerActivity(activity.quit(activity.playerName(), occurredAt));
+        // 整服级别的兜底：同时在多个子服上的玩家必须全部收尾，否则仍会被判定为在线。
+        repository.savePlayerActivity(activity.quitAll(activity.playerName(), occurredAt));
     }
 
     private List<MinecraftPlayerActivity> allStoredPlayerActivities(String serverId) {

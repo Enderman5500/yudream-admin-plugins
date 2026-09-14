@@ -1,5 +1,6 @@
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { EconomyRecord, InheritanceRule, MinecraftEndpoint, MinecraftServer, MinecraftStatusSnapshot, PlayerActivity, SeasonForm, SeasonOperation, ServerForm, TimeValue } from '../types'
+import type { EconomyRecord, InheritanceRule, MinecraftEndpoint, MinecraftServer, MinecraftStatusSnapshot, PlayerActivity, PlayerSubServerDetail, SeasonForm, SeasonOperation, ServerForm, TimeValue } from '../types'
+import { subServerBreakdown as breakdownOf, hasSubServerDimension, isDefaultSubServer, subServerLabel } from '../utils/subServer'
 import { useFaToast } from '@yudream/components'
 import { computed, reactive, ref } from 'vue'
 import { createMinecraftApi } from '../api/minecraft-api'
@@ -625,6 +626,16 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
     return `${seconds}s`
   }
 
+  /**
+   * 一个玩家的按子服时长明细。
+   *
+   * 兜底桶的处理与排序口径在 `utils/subServer.ts`，那里是纯函数、有单测；这里只把本组件的时长
+   * 展示口径绑上去。
+   */
+  function subServerBreakdown(record?: PlayerActivity | null): PlayerSubServerDetail[] {
+    return breakdownOf(record, formatDuration)
+  }
+
   function seasonPayload() {
     return {
       name: seasonForm.name.trim(),
@@ -740,6 +751,10 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
     endpointAddress,
     uploadMarkdownImage,
     formatDuration,
+    subServerLabel,
+    isDefaultSubServer,
+    hasSubServerDimension,
+    subServerBreakdown,
     nextRecordsPage,
     prevRecordsPage,
     nextOperationsPage,

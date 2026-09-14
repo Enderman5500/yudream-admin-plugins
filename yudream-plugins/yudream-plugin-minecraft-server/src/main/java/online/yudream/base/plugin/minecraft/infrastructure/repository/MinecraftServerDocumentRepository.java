@@ -17,6 +17,7 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftStatusSnapshot;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServerActivity;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 
 import java.math.BigDecimal;
@@ -410,6 +411,22 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         document.put("lastQuitAt", activity.lastQuitAt());
         document.put("createdAt", activity.createdAt());
         document.put("updatedAt", activity.updatedAt());
+        // 子服拆分。顶层字段是它的汇总，写入两边只是为了文档可读与旧读者兜底。
+        document.put("subServers", activity.subServers().values().stream()
+                .map(this::subServerActivityDocument)
+                .toList());
+        return document;
+    }
+
+    private Map<String, Object> subServerActivityDocument(MinecraftSubServerActivity activity) {
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("name", activity.name());
+        document.put("onlineMillis", activity.onlineMillis());
+        document.put("afkMillis", activity.afkMillis());
+        document.put("currentOnlineSince", activity.currentOnlineSince());
+        document.put("currentAfkSince", activity.currentAfkSince());
+        document.put("lastJoinedAt", activity.lastJoinedAt());
+        document.put("lastQuitAt", activity.lastQuitAt());
         return document;
     }
 
@@ -614,7 +631,14 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         );
     }
 
+    @SuppressWarnings("unchecked")
     private MinecraftPlayerActivity toPlayerActivity(Map<String, Object> document) {
+        // 本次改动之前写入的文档没有 subServers：这里读出空表，由聚合构造器用汇总字段补一个默认桶。
+        Map<String, MinecraftSubServerActivity> subServers = new LinkedHashMap<>();
+        for (Map<String, Object> item : list(document, "subServers")) {
+            MinecraftSubServerActivity activity = toSubServerActivity(item);
+            subServers.put(activity.name(), activity);
+        }
         return new MinecraftPlayerActivity(
                 string(document, "id"),
                 string(document, "serverId"),
@@ -627,7 +651,20 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
                 nullableNumber(document, "lastJoinedAt"),
                 nullableNumber(document, "lastQuitAt"),
                 number(document, "createdAt", 0L),
-                number(document, "updatedAt", 0L)
+                number(document, "updatedAt", 0L),
+                subServers
+        );
+    }
+
+    private MinecraftSubServerActivity toSubServerActivity(Map<String, Object> document) {
+        return new MinecraftSubServerActivity(
+                string(document, "name"),
+                number(document, "onlineMillis", 0L),
+                number(document, "afkMillis", 0L),
+                nullableNumber(document, "currentOnlineSince"),
+                nullableNumber(document, "currentAfkSince"),
+                nullableNumber(document, "lastJoinedAt"),
+                nullableNumber(document, "lastQuitAt")
         );
     }
 
