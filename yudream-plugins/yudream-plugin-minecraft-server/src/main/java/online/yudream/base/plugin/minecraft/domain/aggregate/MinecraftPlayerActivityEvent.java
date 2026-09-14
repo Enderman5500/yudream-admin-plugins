@@ -42,20 +42,6 @@ public record MinecraftPlayerActivityEvent(
         return new MinecraftPlayerActivityEvent(null, serverId, playerId, playerName, subServer, type, occurredAt);
     }
 
-    /**
-     * 回放某个子服的时间窗时，这条事件是否参与。
-     *
-     * <p>两侧的空值都表示「不限定」：过滤器为空就是整服统计；事件自身为空说明它没有子服维度
-     * （整服级别的收尾，或旧的扁平上报），这种事件必须继续参与任意子服的回放——否则一次服务端
-     * 离线就关不掉某个子服上仍然开着的区间，时长会一路算到窗口末尾。
-     *
-     * <p>因此只有「过滤器指定了子服」且「事件指定了另一个子服」时才排除。
-     */
-    public boolean appliesToSubServer(String filter) {
-        String target = filter == null ? "" : filter.trim();
-        return target.isEmpty() || subServer.isEmpty() || target.equals(subServer);
-    }
-
     private static String requireText(String value, String message) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(message);
         return value.trim();

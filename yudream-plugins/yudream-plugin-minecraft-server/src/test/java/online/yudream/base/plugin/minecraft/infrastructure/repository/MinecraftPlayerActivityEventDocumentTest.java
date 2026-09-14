@@ -9,7 +9,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 活动事件文档的读写。
@@ -33,8 +32,6 @@ class MinecraftPlayerActivityEventDocumentTest {
         assertEquals("fabric", read.subServer());
         assertEquals(MinecraftPlayerActivityEvent.Type.JOIN, read.type());
         assertEquals(1_000L, read.occurredAt());
-        assertTrue(read.appliesToSubServer("fabric"));
-        assertFalse(read.appliesToSubServer("paper"));
     }
 
     /** 整服事件不写这个键，文档与改造前逐字节一致。 */
@@ -52,8 +49,8 @@ class MinecraftPlayerActivityEventDocumentTest {
     /**
      * 改造之前写入的事件没有 {@code subServer} 键。
      *
-     * <p>读取必须容忍，并归入「无子服维度」——这种事件仍要参与任意子服的回放，否则一次服务端离线
-     * 就关不掉某个子服上开着的区间。
+     * <p>读取必须容忍，并归入「无子服维度」。这类事件在按子服回放时不能被当成「属于每台子服」——
+     * 它没有子服信息，归属只能靠与之配对的收尾事件补，补不上就不计入任何具名子服。
      */
     @Test
     void legacyEventsWithoutTheKeyReadAsNoSubServerDimension() throws Exception {
@@ -68,8 +65,6 @@ class MinecraftPlayerActivityEventDocumentTest {
         MinecraftPlayerActivityEvent read = invokeToEvent(document);
 
         assertEquals("", read.subServer());
-        assertTrue(read.appliesToSubServer("fabric"));
-        assertTrue(read.appliesToSubServer(""));
     }
 
     @SuppressWarnings("unchecked")

@@ -405,16 +405,77 @@ class MinecraftServerAppServiceTest {
         assertEquals(15_000, fabric.onlineMillis());
     }
 
+    /**
+     * 升级期间同一次会话的 JOIN 与 QUIT 可能一个没有子服字段、一个带子服名。
+     *
+     * <p>这是本机真实发生过的形态：1.7.0 写入的 JOIN 丢了子服，1.8.0 写入的 QUIT 带着 fabric。
+     * 区间归属按整段决定——优先用开启事件的名字，开启事件为空时退回收尾事件的名字，因此这段会话
+     * 应算在 fabric 上、不算在 paper 上。
+     */
     @Test
-    void emptySubServerFilterIsTheWholeServerCount() {
-        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
-                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer(""));
-        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "",
-                MinecraftPlayerActivityEvent.Type.QUIT, BASE).appliesToSubServer("fabric"));
-        assertTrue(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
-                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer("fabric"));
-        assertFalse(MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "paper",
-                MinecraftPlayerActivityEvent.Type.JOIN, BASE).appliesToSubServer("fabric"));
+    void aMixedIntervalIsAttributedToTheClosingEventWhenTheOpeningEventHasNoSubServer() {
+        when(repository.findPlayerActivity("server-1", "player-1"))
+                .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", BASE)));
+        when(repository.listPlayerActivityEvents(eq("server-1"), eq("player-1"), anyInt(), anyInt()))
+                .thenReturn(List.of(
+                        // 1.7.0 写入：开启事件没有子服维度。
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve",
+                                MinecraftPlayerActivityEvent.Type.JOIN, BASE + 10_000),
+                        // 1.8.0 写入：收尾事件带着子服名。
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
+                                MinecraftPlayerActivityEvent.Type.QUIT, BASE + 70_000)));
+
+        long fabric = service.minecraftOnlineWindow("server-1", "player-1", "fabric", BASE, BASE + 600_000)
+                .orElseThrow().onlineMillis();
+        long paper = service.minecraftOnlineWindow("server-1", "player-1", "paper", BASE, BASE + 600_000)
+                .orElseThrow().onlineMillis();
+
+        assertEquals(60_000, fabric);
+        assertEquals(0, paper);
+    }
+
+    /**
+     * 活动时段还在进行时（windowEnd 在未来），此刻仍在线的人不能被记为「在线满整个周期」。
+     *
+     * <p>曾经的算法把没有收尾的开放区间一路算到 windowEnd，于是刚进服的人也会凑够阈值；本机
+     * 实测出现过把 1 分钟的子服算成 7550 分钟。
+     */
+    @Test
+    void anOpenIntervalIsNeverCountedPastNow() {
+        long now = System.currentTimeMillis();
+        when(repository.findPlayerActivity("server-1", "player-1"))
+                .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", now)));
+        when(repository.listPlayerActivityEvents(eq("server-1"), eq("player-1"), anyInt(), anyInt()))
+                .thenReturn(List.of(
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
+                                MinecraftPlayerActivityEvent.Type.JOIN, now - 60_000)));
+
+        // 窗口从很久以前一直开到 10 天之后，且没有任何收尾事件。
+        PluginMinecraftOnlineWindow window = service
+                .minecraftOnlineWindow("server-1", "player-1", "fabric", now - 600_000, now + 10L * 86_400_000L)
+                .orElseThrow();
+
+        // 只能算到「现在」，容差 5 秒。
+        assertTrue(window.onlineMillis() >= 55_000 && window.onlineMillis() <= 65_000,
+                "期望约 60 秒，实际 " + window.onlineMillis() + " ms");
+    }
+
+    /** 开启与收尾都没有子服名的区间无法归属，任何具名子服都不计入，但整服口径照常计入。 */
+    @Test
+    void anIntervalWithNoSubServerOnEitherEndIsOnlyCountedForTheWholeServer() {
+        when(repository.findPlayerActivity("server-1", "player-1"))
+                .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", BASE)));
+        when(repository.listPlayerActivityEvents(eq("server-1"), eq("player-1"), anyInt(), anyInt()))
+                .thenReturn(List.of(
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve",
+                                MinecraftPlayerActivityEvent.Type.JOIN, BASE + 10_000),
+                        MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve",
+                                MinecraftPlayerActivityEvent.Type.QUIT, BASE + 40_000)));
+
+        assertEquals(30_000, service.minecraftOnlineWindow("server-1", "player-1", BASE, BASE + 600_000)
+                .orElseThrow().onlineMillis());
+        assertEquals(0, service.minecraftOnlineWindow("server-1", "player-1", "fabric", BASE, BASE + 600_000)
+                .orElseThrow().onlineMillis());
     }
 
     // ------------------------------------------------------------------ 子服列表

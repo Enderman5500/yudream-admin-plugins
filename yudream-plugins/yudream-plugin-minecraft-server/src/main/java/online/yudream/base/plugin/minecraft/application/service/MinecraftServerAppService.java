@@ -751,41 +751,98 @@ public class MinecraftServerAppService implements PluginMinecraftService {
     private record WindowStat(long firstJoinAt, long onlineMillis, long afkMillis) {
     }
 
+    /**
+     * 回放事件流水，算出窗口内的在线与挂机时长。
+     *
+     * <p>两个容易算错的点，都在这里收口：
+     *
+     * <ul>
+     *   <li><b>尚未发生的时间不算已在线。</b>活动时段可能还在进行（{@code windowEnd} 在未来），而
+     *       此刻仍在线的人会留下一个没有收尾的事件。若把这段开放区间直接算到 {@code windowEnd}，
+     *       一个刚进服的人也会被记成「在线满整个活动周期」。因此回放的有效终点取
+     *       {@code min(windowEnd, 现在)}。</li>
+     *   <li><b>一个区间的归属由整段决定，而不是逐事件判断。</b>升级期间同一次会话的 JOIN 与 QUIT
+     *       可能一个没有子服字段（旧版写入丢掉了）、一个带子服名。只认开启事件的名字，会让这段
+     *       区间在具名子服下开不出也关不掉，最终被算到窗口末尾；只认收尾事件，又会把整段误记到
+     *       收尾那台子服。这里的规则是：优先用开启事件的名字，开启事件为空时退回收尾事件的名字；
+     *       两者都为空即无法归属——整服口径照常计入，具名子服一律不计入。</li>
+     * </ul>
+     *
+     * <p>{@code subServer} 为空表示整服口径，此时所有区间都计入，与他人为改动前的行为一致。
+     */
     private WindowStat windowStat(List<MinecraftPlayerActivityEvent> events, String subServer, long windowStart, long windowEnd) {
         long onlineMillis = 0;
         long afkMillis = 0;
         long firstJoinAt = 0;
         Long onlineSince = null;
         Long afkSince = null;
+        // 当前区间的归属：开启事件的名字，为空时留待收尾事件补上。
+        String openSubServer = "";
+        long effectiveEnd = Math.min(windowEnd, System.currentTimeMillis());
         for (MinecraftPlayerActivityEvent event : events) {
             long at = event.occurredAt();
-            if (at > windowEnd) break;
-            // 事件已按时间升序排列，因此跳过别的子服不会破坏这个提前退出。
-            if (!event.appliesToSubServer(subServer)) continue;
+            if (at > effectiveEnd) break;
             switch (event.type()) {
                 case JOIN -> {
-                    if (onlineSince == null) onlineSince = at;
-                    if (firstJoinAt == 0 && at >= windowStart) firstJoinAt = at;
+                    if (onlineSince == null) {
+                        onlineSince = at;
+                        openSubServer = event.subServer();
+                    }
+                    // 别的子服的 JOIN 不能让玩家在这台子服上算作「窗口内上线过」。
+                    if (firstJoinAt == 0 && at >= windowStart
+                            && attributedTo(event.subServer(), "", subServer)) {
+                        firstJoinAt = at;
+                    }
                 }
                 case QUIT, SERVER_OFFLINE, SERVER_SNAPSHOT -> {
-                    onlineMillis += overlap(onlineSince, at, windowStart, windowEnd);
-                    afkMillis += overlap(afkSince, at, windowStart, windowEnd);
+                    if (attributedTo(openSubServer, event.subServer(), subServer)) {
+                        onlineMillis += overlap(onlineSince, at, windowStart, effectiveEnd);
+                        afkMillis += overlap(afkSince, at, windowStart, effectiveEnd);
+                    }
                     onlineSince = null;
                     afkSince = null;
+                    openSubServer = "";
                 }
                 case AFK_START -> {
-                    if (onlineSince == null) onlineSince = at;
+                    if (onlineSince == null) {
+                        onlineSince = at;
+                        openSubServer = event.subServer();
+                    }
                     if (afkSince == null) afkSince = at;
                 }
                 case AFK_END -> {
-                    afkMillis += overlap(afkSince, at, windowStart, windowEnd);
+                    if (attributedTo(openSubServer, event.subServer(), subServer)) {
+                        afkMillis += overlap(afkSince, at, windowStart, effectiveEnd);
+                    }
                     afkSince = null;
                 }
             }
         }
-        onlineMillis += overlap(onlineSince, windowEnd, windowStart, windowEnd);
-        afkMillis += overlap(afkSince, windowEnd, windowStart, windowEnd);
+        if (attributedTo(openSubServer, "", subServer)) {
+            onlineMillis += overlap(onlineSince, effectiveEnd, windowStart, effectiveEnd);
+            afkMillis += overlap(afkSince, effectiveEnd, windowStart, effectiveEnd);
+        }
         return new WindowStat(firstJoinAt, onlineMillis, afkMillis);
+    }
+
+    /**
+     * 这段区间是否计入当前口径。
+     *
+     * @param openSubServer  开启事件带的子服名，可为空
+     * @param closeSubServer 收尾事件带的子服名，可为空
+     * @param filter         当前口径；为空表示整服
+     */
+    private static boolean attributedTo(String openSubServer, String closeSubServer, String filter) {
+        String target = filter == null ? "" : filter.trim();
+        if (target.isEmpty()) {
+            return true;
+        }
+        String opener = openSubServer == null ? "" : openSubServer.trim();
+        String attributed = !opener.isEmpty()
+                ? opener
+                : (closeSubServer == null ? "" : closeSubServer.trim());
+        // 无法归属（开启与收尾都没有子服名）的区间不计入任何具名子服：宁可少算，不可错记。
+        return target.equals(attributed);
     }
 
     private void recordActivityEvent(String serverId, MinecraftPlayerEventCmd cmd, MinecraftPlayerActivityEvent.Type type, long occurredAt) {

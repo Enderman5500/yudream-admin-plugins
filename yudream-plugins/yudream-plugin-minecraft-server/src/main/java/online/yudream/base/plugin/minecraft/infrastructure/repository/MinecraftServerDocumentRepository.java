@@ -35,6 +35,20 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
     private static final String PLAYER_ACTIVITIES = "player-activities";
     private static final String PLAYER_ACTIVITY_EVENTS = "player-activity-events";
     private static final String TOPOLOGIES = "server-topologies";
+
+    /**
+     * 事件排序：先按发生时间，同一时刻把「收尾」排在「开启」之前。
+     *
+     * <p>代理在换服时于同一毫秒发出「旧子服 QUIT + 新子服 JOIN」。若 JOIN 排在前面，新子服的区间会
+     * 被紧随其后的旧 QUIT 立刻关掉，这一段时长既没算给新子服、又被旧 QUIT 当成自己的收尾——实测能
+     * 让一次几十秒的会话在按子服统计时变成 0 分钟。收尾先于开启才符合「同一时刻不可能同时在线于两
+     * 台子服」的事实。
+     */
+    private static final java.util.Comparator<MinecraftPlayerActivityEvent> EVENT_ORDER =
+            java.util.Comparator.comparingLong(MinecraftPlayerActivityEvent::occurredAt)
+                    .thenComparingInt(event -> event.type() == MinecraftPlayerActivityEvent.Type.JOIN
+                            || event.type() == MinecraftPlayerActivityEvent.Type.AFK_START ? 1 : 0);
+
     private static final int SERVER_SCAN_PAGE_SIZE = 200;
     private static final int SNAPSHOT_SCAN_PAGE_SIZE = 200;
     private static final int SNAPSHOT_SCAN_MAX_PAGES = 10;
@@ -180,7 +194,7 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         return allPlayerActivityEventDocuments(serverId).stream()
                 .map(this::toPlayerActivityEvent)
                 .filter(event -> event.playerId().equals(playerId))
-                .sorted(java.util.Comparator.comparingLong(MinecraftPlayerActivityEvent::occurredAt))
+                .sorted(EVENT_ORDER)
                 .skip((long) (safePage - 1) * safeSize)
                 .limit(safeSize)
                 .toList();
@@ -234,7 +248,7 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
     public List<MinecraftPlayerActivityEvent> allPlayerActivityEvents(String serverId) {
         return allPlayerActivityEventDocuments(serverId).stream()
                 .map(this::toPlayerActivityEvent)
-                .sorted(java.util.Comparator.comparingLong(MinecraftPlayerActivityEvent::occurredAt))
+                .sorted(EVENT_ORDER)
                 .toList();
     }
 
