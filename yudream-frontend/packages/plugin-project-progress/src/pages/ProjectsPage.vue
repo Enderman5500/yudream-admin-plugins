@@ -19,13 +19,23 @@ const checkInTypeOptions = [
 const statusOptions = computed(() => props.model.projectStatusOptions.map(item => ({ label: item.label, value: item.code })))
 const serverOptions = computed(() => [{ label: '未选择', value: '' }, ...props.model.minecraftServers.map(server => ({ label: `${server.name}${server.currentSeasonName ? ` · ${server.currentSeasonName}` : ''}`, value: server.id }))])
 
-/** 选中服务器的子服选项；默认入口与未装传感器的子服在标签里标出来。 */
-const minecraftSubServerOptions = computed(() => (props.model.subServersOf(props.model.projectForm.minecraftPolicy.serverId) || []).map((sub: { name: string, defaultServer: boolean, sensor: boolean }) => ({
-  value: sub.name,
-  label: sub.name
-    + (sub.defaultServer ? '（默认入口）' : '')
-    + (sub.sensor ? '' : '（未装传感器）'),
-})))
+/**
+ * 子服选项；默认入口与未装传感器的子服在标签里标出来。
+ *
+ * 首项是空值的「整服」：FaSelect 没有 clearable，如果把「整服」只写成 placeholder，一旦选了
+ * 某台子服就再也回不到整服口径——placeholder 只在无值时显示，点不到。
+ */
+const minecraftSubServerOptions = computed(() => [
+  { label: '整服（不限子服）', value: '' },
+  ...(props.model.subServersOf(props.model.projectForm.minecraftPolicy.serverId) || []).map(
+    (sub: { name: string, defaultServer: boolean, sensor: boolean }) => ({
+      value: sub.name,
+      label: sub.name
+        + (sub.defaultServer ? '（默认入口）' : '')
+        + (sub.sensor ? '' : '（未装传感器）'),
+    }),
+  ),
+])
 const pagedRows = computed(() => props.model.projects.slice((pagination.page - 1) * pagination.size, pagination.page * pagination.size))
 const columns: TableColumn<ProjectProgressProject>[] = [
   { id: 'project', header: '项目', width: 300, fixed: 'left' }, { id: 'status', header: '状态', width: 110 }, { id: 'managers', header: '负责人', width: 220 }, { id: 'members', header: '成员', width: 90 }, { id: 'checkInTypes', header: '打卡方式', width: 240 }, { id: 'server', header: 'MC 服务器', width: 170 }, { id: 'updatedAt', header: '更新时间', width: 180 }, { id: 'operation', header: '操作', width: 220, align: 'center', fixed: 'right' },

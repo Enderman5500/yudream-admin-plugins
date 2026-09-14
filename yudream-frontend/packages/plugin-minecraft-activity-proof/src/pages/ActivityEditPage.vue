@@ -28,13 +28,21 @@ const deptModeOptions = [
 const deptSelectOptions = computed(() => deptOptions.value.map(item => ({ label: item.label || item.name, value: item.id })))
 const serverSelectOptions = computed(() => servers.value.map(item => ({ label: item.name, value: item.id })))
 
-/** 选中服务器的子服选项；默认入口与已装传感器的子服在标签里标出来。 */
-const subServerOptions = (serverId: string) => model.subServersOf(serverId).map(sub => ({
-  value: sub.name,
-  label: sub.name
-    + (sub.defaultServer ? '（默认入口）' : '')
-    + (sub.sensor ? '' : '（未装传感器）'),
-}))
+/**
+ * 子服选项；默认入口与已装传感器的子服在标签里标出来。
+ *
+ * 首项是空值的「整服」：FaSelect 没有 clearable，如果把「整服」只写成 placeholder，一旦选了
+ * 某台子服就再也回不到整服口径——placeholder 只在无值时显示，点不到。
+ */
+const subServerOptions = (serverId: string) => [
+  { label: '整服（不限子服）', value: '' },
+  ...model.subServersOf(serverId).map(sub => ({
+    value: sub.name,
+    label: sub.name
+      + (sub.defaultServer ? '（默认入口）' : '')
+      + (sub.sensor ? '' : '（未装传感器）'),
+  })),
+]
 const formSelectOptions = computed(() => formOptions.value.map(item => ({ label: item.description ? `${item.name}（${item.description}）` : item.name, value: item.code })))
 
 // FaImageUpload 内部通过 push/splice 原地改数组，不会触发 update:modelValue；
