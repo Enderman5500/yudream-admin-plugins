@@ -2,6 +2,7 @@ package online.yudream.base.plugin.minecraft.infrastructure.repository;
 
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftSeasonOperation;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServer;
+import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServerTopology;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivity;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivityEvent;
 import online.yudream.base.plugin.minecraft.domain.enumerate.MinecraftEdition;
@@ -15,6 +16,7 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerSeason;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftStatusSnapshot;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 
 import java.math.BigDecimal;
@@ -31,6 +33,7 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
     private static final String OPERATIONS = "season-operations";
     private static final String PLAYER_ACTIVITIES = "player-activities";
     private static final String PLAYER_ACTIVITY_EVENTS = "player-activity-events";
+    private static final String TOPOLOGIES = "server-topologies";
     private static final int SERVER_SCAN_PAGE_SIZE = 200;
     private static final int SNAPSHOT_SCAN_PAGE_SIZE = 200;
     private static final int SNAPSHOT_SCAN_MAX_PAGES = 10;
@@ -79,6 +82,7 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         deleteByServerId(OPERATIONS, id);
         deleteByServerId(PLAYER_ACTIVITIES, id);
         deleteByServerId(PLAYER_ACTIVITY_EVENTS, id);
+        documents.delete(TOPOLOGIES, id);
     }
 
     @Override
@@ -233,8 +237,17 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
                 .toList();
     }
 
-    private List<Map<String, Object>> allPlayerActivityEventDocuments(String serverId) {
-        List<Map<String, Object>> result = new java.util.ArrayList<>();
+    @Override
+    public MinecraftServerTopology saveTopology(MinecraftServerTopology topology) {
+        return toTopology(documents.save(TOPOLOGIES, topology.serverId(), topologyDocument(topology)));
+    }
+
+    @Override
+    public Optional<MinecraftServerTopology> findTopology(String serverId) {
+        return documents.findById(TOPOLOGIES, serverId).map(this::toTopology);
+    }
+
+    private List<Map<String, Object>> allPlayerActivityEventDocuments(String serverId) {        List<Map<String, Object>> result = new java.util.ArrayList<>();
         int page = 1;
         while (true) {
             List<Map<String, Object>> rows = documents.findByField(PLAYER_ACTIVITY_EVENTS, "serverId", serverId, page, SERVER_SCAN_PAGE_SIZE);
@@ -345,8 +358,29 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
         return document;
     }
 
-    private Map<String, Object> operationDocument(MinecraftSeasonOperation operation) {
+    private Map<String, Object> topologyDocument(MinecraftServerTopology topology) {
         Map<String, Object> document = new LinkedHashMap<>();
+        document.put("id", topology.serverId());
+        document.put("serverId", topology.serverId());
+        document.put("proxy", topology.proxy());
+        document.put("proxyVersion", topology.proxyVersion());
+        document.put("reportedAt", topology.reportedAt());
+        document.put("servers", topology.servers().stream().map(this::subServerDocument).toList());
+        return document;
+    }
+
+    private Map<String, Object> subServerDocument(MinecraftSubServer server) {
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("name", server.name());
+        document.put("address", server.address());
+        document.put("online", server.online());
+        document.put("sensor", server.sensor());
+        document.put("defaultServer", server.defaultServer());
+        document.put("sort", server.sort());
+        return document;
+    }
+
+    private Map<String, Object> operationDocument(MinecraftSeasonOperation operation) {        Map<String, Object> document = new LinkedHashMap<>();
         document.put("id", operation.id());
         document.put("serverId", operation.serverId());
         document.put("fromSeasonId", operation.fromSeasonId());
@@ -502,6 +536,31 @@ public class MinecraftServerDocumentRepository implements MinecraftServerReposit
                 integer(document, "onlinePlayers", 0),
                 integer(document, "maxPlayers", 0),
                 number(document, "checkedAt", 0L)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private MinecraftServerTopology toTopology(Map<String, Object> document) {
+        List<MinecraftSubServer> servers = list(document, "servers").stream()
+                .map(item -> toSubServer((Map<String, Object>) item))
+                .toList();
+        return new MinecraftServerTopology(
+                string(document, "serverId"),
+                string(document, "proxy"),
+                string(document, "proxyVersion"),
+                number(document, "reportedAt", 0L),
+                servers
+        );
+    }
+
+    private MinecraftSubServer toSubServer(Map<String, Object> document) {
+        return new MinecraftSubServer(
+                string(document, "name"),
+                string(document, "address"),
+                integer(document, "online", 0),
+                bool(document, "sensor", false),
+                bool(document, "defaultServer", false),
+                integer(document, "sort", 0)
         );
     }
 

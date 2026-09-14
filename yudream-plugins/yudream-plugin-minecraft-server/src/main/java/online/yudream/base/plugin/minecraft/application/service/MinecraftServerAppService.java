@@ -10,6 +10,7 @@ import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerEvent
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerSnapshotCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftSeasonOpenCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerSaveCmd;
+import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerTopologyCmd;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftEconomyRecordDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftSeasonOperationDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftPlayerActivityDTO;
@@ -18,6 +19,7 @@ import online.yudream.base.plugin.minecraft.application.dto.MinecraftServerDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftStatusSnapshotDTO;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftSeasonOperation;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServer;
+import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftServerTopology;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivity;
 import online.yudream.base.plugin.minecraft.domain.aggregate.MinecraftPlayerActivityEvent;
 import online.yudream.base.plugin.minecraft.domain.enumerate.MinecraftEdition;
@@ -30,10 +32,12 @@ import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerEndpoin
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerSeason;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerStatus;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftServerMap;
+import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftSubServer;
 import online.yudream.base.plugin.spi.system.storage.PluginFileStore;
 import online.yudream.base.plugin.spi.system.storage.PluginStoredFile;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Optional;
 import online.yudream.base.plugin.minecraft.domain.valobj.MinecraftStatusSnapshot;
 import online.yudream.base.plugin.minecraft.infrastructure.service.MinecraftStatusService;
 import online.yudream.base.plugin.spi.system.FrameworkServices;
@@ -91,7 +95,7 @@ public class MinecraftServerAppService implements PluginMinecraftService {
         int safePage = safePage(page);
         int safeSize = safeSize(size);
         List<MinecraftServerDTO> records = repository.list(safePage, safeSize, includeDisabled).stream()
-                .map(server -> assembler.toDTO(server, refreshStatus ? refreshStatus(server.id()) : repository.findStatus(server.id()).orElse(null)))
+                .map(server -> toDto(server, refreshStatus ? refreshStatus(server.id()) : repository.findStatus(server.id()).orElse(null)))
                 .map(dto -> includeDisabled ? dto : assembler.toUserDTO(dto))
                 .toList();
         return new MinecraftPageDTO<>(records, repository.count(includeDisabled));
@@ -99,14 +103,115 @@ public class MinecraftServerAppService implements PluginMinecraftService {
 
     public List<MinecraftServerDTO> listServers(boolean includeDisabled, boolean refreshStatus) {
         return allServers(includeDisabled).stream()
-                .map(server -> assembler.toDTO(server, refreshStatus ? refreshStatus(server.id()) : repository.findStatus(server.id()).orElse(null)))
+                .map(server -> toDto(server, refreshStatus ? refreshStatus(server.id()) : repository.findStatus(server.id()).orElse(null)))
                 .toList();
     }
 
     public MinecraftServerDTO detail(String serverId, boolean refreshStatus) {
         MinecraftServer server = requireServer(serverId);
         MinecraftServerStatus status = refreshStatus ? refreshStatus(server.id()) : repository.findStatus(server.id()).orElse(null);
-        return assembler.toDTO(server, status);
+        return toDto(server, status);
+    }
+
+    /** Builds the DTO with the server's reported proxy topology, which is absent for a non-proxy. */
+    private MinecraftServerDTO toDto(MinecraftServer server, MinecraftServerStatus status) {
+        return assembler.toDTO(server, status, repository.findTopology(server.id()).orElse(null));
+    }
+
+    /**
+     * Stores the downstream-server list reported by a bridge that targets this server explicitly.
+     *
+     * @throws IllegalArgumentException when the reported server id does not exist
+     */
+    public MinecraftServerDTO.TopologyDTO recordTopology(String serverId, MinecraftServerTopologyCmd cmd) {
+        return saveTopology(requireServer(serverId), cmd);
+    }
+
+    /**
+     * Stores a topology reported without a server id, by matching the proxy's own addresses against
+     * the configured endpoints. This is what removes the need to copy an Admin server id into the
+     * proxy's bridge config: the operator points the bridge at Admin and the entry attaches itself.
+     *
+     * @return the matched topology, or empty when no server claims any of the addresses
+     */
+    public Optional<MinecraftServerDTO.TopologyDTO> recordTopologyByAddress(List<String> addresses, MinecraftServerTopologyCmd cmd) {
+        return matchByAddress(addresses).map(server -> saveTopology(server, cmd));
+    }
+
+    /**
+     * Re-reads the topology already attached to a server.
+     *
+     * @throws IllegalArgumentException when the bridge has never reported one, with the reason a
+     *                                  proxy cannot be discovered from Admin alone
+     */
+    public MinecraftServerDTO.TopologyDTO resolveTopology(String serverId) {
+        MinecraftServer server = requireServer(serverId);
+        return repository.findTopology(server.id())
+                .filter(MinecraftServerTopology::reported)
+                .map(assembler::toDTO)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "该服务器还没有收到代理拓扑上报。代理的子服列表只能由代理自己上报，"
+                                + "无法从 Admin 侧探测：请在代理端安装桥接插件，并在其配置中填写 Admin 地址、API Key，"
+                                + "以及与本服务器线路一致的地址。"));
+    }
+
+    private MinecraftServerDTO.TopologyDTO saveTopology(MinecraftServer server, MinecraftServerTopologyCmd cmd) {
+        long reportedAt = cmd.reportedAt() == null || cmd.reportedAt() <= 0 ? System.currentTimeMillis() : cmd.reportedAt();
+        MinecraftServerTopology topology = new MinecraftServerTopology(
+                server.id(),
+                cmd.proxy(),
+                cmd.proxyVersion(),
+                reportedAt,
+                toSubServers(cmd.servers()));
+        return assembler.toDTO(repository.saveTopology(topology));
+    }
+
+    private List<MinecraftSubServer> toSubServers(List<MinecraftServerTopologyCmd.Server> servers) {
+        List<MinecraftSubServer> items = new java.util.ArrayList<>();
+        int sort = 0;
+        for (MinecraftServerTopologyCmd.Server server : servers) {
+            if (server == null || server.name() == null || server.name().isBlank()) {
+                continue;
+            }
+            items.add(new MinecraftSubServer(
+                    server.name(),
+                    server.address(),
+                    server.online() == null ? 0 : server.online(),
+                    Boolean.TRUE.equals(server.sensor()),
+                    Boolean.TRUE.equals(server.defaultServer()),
+                    sort++));
+        }
+        return items;
+    }
+
+    private Optional<MinecraftServer> matchByAddress(List<String> addresses) {
+        if (addresses == null || addresses.isEmpty()) {
+            return Optional.empty();
+        }
+        List<String> wanted = addresses.stream()
+                .filter(address -> address != null && !address.isBlank())
+                .map(MinecraftServerAppService::normalizeAddress)
+                .toList();
+        if (wanted.isEmpty()) {
+            return Optional.empty();
+        }
+        return allServers(true).stream()
+                .filter(server -> server.endpoints().stream()
+                        .anyMatch(endpoint -> wanted.contains(normalizeAddress(endpoint.address()))
+                                || wanted.contains(normalizeAddress(endpoint.host()))))
+                .findFirst();
+    }
+
+    /** Compares addresses case-insensitively and treats a missing port as the default one. */
+    private static String normalizeAddress(String value) {
+        String address = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (address.isEmpty()) {
+            return "";
+        }
+        if (address.endsWith(":25565")) {
+            return address.substring(0, address.length() - ":25565".length());
+        }
+        return address;
     }
 
     public MinecraftServerDTO saveServer(MinecraftServerSaveCmd cmd) {
@@ -214,7 +319,7 @@ public class MinecraftServerAppService implements PluginMinecraftService {
     public MinecraftPageDTO<MinecraftServerDTO> archivedServers(int page, int size) {
         List<MinecraftServerDTO> records = allServers(true).stream().filter(server -> !server.enabled())
                 .skip((long) (safePage(page) - 1) * safeSize(size)).limit(safeSize(size))
-                .map(server -> assembler.toUserDTO(assembler.toDTO(server, repository.findStatus(server.id()).orElse(null)))).toList();
+                .map(server -> assembler.toUserDTO(toDto(server, repository.findStatus(server.id()).orElse(null)))).toList();
         long total = allServers(true).stream().filter(server -> !server.enabled()).count();
         return new MinecraftPageDTO<>(records, total);
     }

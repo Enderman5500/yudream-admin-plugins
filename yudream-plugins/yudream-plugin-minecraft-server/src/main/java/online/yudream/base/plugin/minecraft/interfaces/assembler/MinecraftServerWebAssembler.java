@@ -4,6 +4,7 @@ import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerEvent
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerSnapshotCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftSeasonOpenCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerSaveCmd;
+import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerTopologyCmd;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftEconomyRecordDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftEndpointStatusDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftInheritanceRuleDTO;
@@ -17,6 +18,7 @@ import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftPlayerEv
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftPlayerSnapshotRequest;
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftSeasonOpenRequest;
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftServerSaveRequest;
+import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftServerTopologyRequest;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftEconomyRecordRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftEndpointStatusRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftInheritanceRuleRes;
@@ -26,6 +28,8 @@ import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftPlayerActivi
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftServerRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftServerStatusRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftStatusSnapshotRes;
+
+import java.util.List;
 
 public class MinecraftServerWebAssembler {
 
@@ -82,9 +86,40 @@ public class MinecraftServerWebAssembler {
                 dto.currentSeason() == null ? null : toRes(dto.currentSeason()),
                 dto.status() == null ? null : toRes(dto.status()),
                 dto.map() == null ? null : new MinecraftServerRes.MapRes(dto.map().fileId(), dto.map().originalName(), dto.map().publicAccess(), dto.map().externalUrl()),
+                toRes(dto.topology()),
                 dto.createdAt(),
                 dto.updatedAt()
         );
+    }
+
+    public MinecraftServerRes.TopologyRes toRes(MinecraftServerDTO.TopologyDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        List<MinecraftServerRes.SubServerRes> servers = dto.servers().stream().map(this::toRes).toList();
+        return new MinecraftServerRes.TopologyRes(
+                dto.proxy(),
+                dto.proxyVersion(),
+                dto.reportedAt(),
+                dto.reported(),
+                servers.stream().mapToInt(MinecraftServerRes.SubServerRes::online).sum(),
+                servers.stream().filter(MinecraftServerRes.SubServerRes::sensor).count(),
+                servers
+        );
+    }
+
+    public MinecraftServerRes.SubServerRes toRes(MinecraftServerDTO.SubServerDTO dto) {
+        return new MinecraftServerRes.SubServerRes(dto.name(), dto.address(), dto.online(),
+                dto.sensor(), dto.defaultServer(), dto.sort());
+    }
+
+    public MinecraftServerTopologyCmd toCmd(MinecraftServerTopologyRequest request) {
+        List<MinecraftServerTopologyCmd.Server> servers = request.servers() == null ? List.of()
+                : request.servers().stream()
+                .map(server -> new MinecraftServerTopologyCmd.Server(server.name(), server.address(),
+                        server.online(), server.sensor(), server.defaultServer()))
+                .toList();
+        return new MinecraftServerTopologyCmd(request.proxy(), request.proxyVersion(), request.reportedAt(), servers);
     }
 
     public MinecraftServerStatusRes toRes(MinecraftServerStatusDTO dto) {

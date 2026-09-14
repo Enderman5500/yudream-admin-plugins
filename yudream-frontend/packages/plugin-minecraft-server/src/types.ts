@@ -57,6 +57,27 @@ export interface MinecraftServerMap {
   externalUrl?: string
 }
 
+/** One downstream server behind a proxy, reported by the bridge running on that proxy. */
+export interface MinecraftSubServer {
+  name: string
+  address: string
+  online: number
+  sensor: boolean
+  defaultServer: boolean
+  sort: number
+}
+
+/** The proxy's reported server list. Absent for a server that is not a proxy. */
+export interface MinecraftTopology {
+  proxy: string
+  proxyVersion: string
+  reportedAt: TimeValue
+  reported: boolean
+  onlinePlayers: number
+  sensorCount: number
+  servers: MinecraftSubServer[]
+}
+
 export interface MinecraftServer {
   id: string
   name: string
@@ -68,6 +89,7 @@ export interface MinecraftServer {
   currentSeason?: MinecraftSeason
   status?: MinecraftServerStatus
   map?: MinecraftServerMap
+  topology?: MinecraftTopology
   createdAt: TimeValue
   updatedAt: TimeValue
 }

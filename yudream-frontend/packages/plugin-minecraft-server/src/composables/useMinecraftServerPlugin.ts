@@ -25,6 +25,7 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
   const adminSurface = ref(false)
   const closedSurface = ref(false)
   const mapOperating = ref(false)
+  const resolvingTopology = ref(false)
   const serverPager = reactive({ page: 1, size: 10, total: 0 })
   const recordsPager = reactive({ page: 1, size: 10, total: 0, hasNext: false })
   const operationsPager = reactive({ page: 1, size: 10, total: 0, hasNext: false })
@@ -345,6 +346,30 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
     }
   }
 
+  /**
+   * 一键解析群组服：拉取代理端桥接已上报的子服表并挂到当前服务器。
+   * 代理的子服列表无法从 Admin 侧探测（Server List Ping 不返回子服），
+   * 未安装桥接时后端会返回具体原因，这里不做额外包装，直接让错误冒泡。
+   */
+  async function resolveTopology(server?: MinecraftServer) {
+    const target = server || selectedServer.value
+    if (!target) {
+      return
+    }
+    resolvingTopology.value = true
+    try {
+      const topology = await api.resolveTopology(target.id)
+      const current = servers.value.find(item => item.id === target.id)
+      if (current) {
+        current.topology = topology
+      }
+      toast.success(`已解析出 ${topology.servers.length} 个子服`)
+    }
+    finally {
+      resolvingTopology.value = false
+    }
+  }
+
   async function previewSeason() {
     if (!walletEnabled.value) {
       toast.warning('钱包插件未启用，周目货币继承已关闭')
@@ -661,6 +686,8 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
     mapOperating,
     walletEnabled,
     closedSurface,
+    adminSurface,
+    resolvingTopology,
     servers,
     selectedId,
     selectedServer,
@@ -698,6 +725,7 @@ export function useMinecraftServerPlugin(sdk: YuDreamPluginSdk) {
     deleteMap,
     downloadMap,
     refreshStatus,
+    resolveTopology,
     copyServerId,
     previewSeason,
     openSeason,
