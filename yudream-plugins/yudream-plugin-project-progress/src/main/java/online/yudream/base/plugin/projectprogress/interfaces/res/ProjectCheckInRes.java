@@ -25,6 +25,11 @@ public record ProjectCheckInRes(
 
     public record MinecraftEvidenceRes(String serverId, String playerId, String playerName,
                                        long totalOnlineMillis, long totalAfkMillis, long effectiveOnlineMillis,
-                                       long periodStart, long periodEnd) {
+                                       long periodStart, long periodEnd,
+                                       List<MinecraftSubServerRes> subServers) {
+    }
+
+    /** 一台子服上的累计时长；{@code name} 为空表示该记录没有子服维度。 */
+    public record MinecraftSubServerRes(String name, long onlineMillis, long afkMillis) {
     }
 }

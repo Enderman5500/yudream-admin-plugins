@@ -15,9 +15,11 @@ import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectFileEvide
 import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectLocationEvidence;
 import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectMinecraftEvidence;
 import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectMinecraftPolicy;
+import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectMinecraftSubServerEvidence;
 import online.yudream.base.plugin.projectprogress.domain.valobj.ProjectStatusOption;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -400,6 +402,18 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
         document.put("effectiveOnlineMillis", minecraft.effectiveOnlineMillis());
         document.put("periodStart", minecraft.periodStart());
         document.put("periodEnd", minecraft.periodEnd());
+        // 子服累计明细只作证据附注；没有时不写空数组，老文档与单机服的记录保持原样。
+        if (!minecraft.subServers().isEmpty()) {
+            List<Map<String, Object>> subServers = new ArrayList<>();
+            for (ProjectMinecraftSubServerEvidence subServer : minecraft.subServers()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", subServer.name());
+                row.put("onlineMillis", subServer.onlineMillis());
+                row.put("afkMillis", subServer.afkMillis());
+                subServers.add(row);
+            }
+            document.put("subServers", subServers);
+        }
         return document;
     }
 
@@ -521,7 +535,16 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
         return document == null || document.isEmpty() ? null : new ProjectMinecraftEvidence(string(document, "serverId"),
                 string(document, "playerId"), string(document, "playerName"),
                 number(document, "totalOnlineMillis", 0), number(document, "totalAfkMillis", 0),
-                number(document, "effectiveOnlineMillis", 0), number(document, "periodStart", 0), number(document, "periodEnd", 0));
+                number(document, "effectiveOnlineMillis", 0), number(document, "periodStart", 0), number(document, "periodEnd", 0),
+                subServerEvidenceList(document.get("subServers")));
+    }
+
+    /** 读取子服累计明细；这个键是后加的，老文档与单机服记录里不存在，按空明细处理。 */
+    private List<ProjectMinecraftSubServerEvidence> subServerEvidenceList(Object value) {
+        return mapList(value).stream()
+                .map(row -> new ProjectMinecraftSubServerEvidence(string(row, "name"),
+                        number(row, "onlineMillis", 0), number(row, "afkMillis", 0)))
+                .toList();
     }
 
     private String nullableText(Map<String, Object> document, String key) {

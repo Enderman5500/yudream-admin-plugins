@@ -110,7 +110,11 @@ public class ProjectProgressWebAssembler {
                 dto.location() == null ? null : new ProjectCheckInRes.LocationRes(dto.location().address(), dto.location().latitude(), dto.location().longitude()),
                 dto.minecraft() == null ? null : new ProjectCheckInRes.MinecraftEvidenceRes(dto.minecraft().serverId(), dto.minecraft().playerId(),
                         dto.minecraft().playerName(), dto.minecraft().totalOnlineMillis(), dto.minecraft().totalAfkMillis(), dto.minecraft().effectiveOnlineMillis(),
-                        dto.minecraft().periodStart(), dto.minecraft().periodEnd()),
+                        dto.minecraft().periodStart(), dto.minecraft().periodEnd(),
+                        dto.minecraft().subServers().stream()
+                                .map(subServer -> new ProjectCheckInRes.MinecraftSubServerRes(
+                                        subServer.name(), subServer.onlineMillis(), subServer.afkMillis()))
+                                .toList()),
                 dto.reviewStatus(), dto.reviewedByUserId(), dto.reviewedAt(),
                 dto.createdAt());
     }

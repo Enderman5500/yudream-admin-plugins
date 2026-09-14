@@ -101,6 +101,12 @@ export interface ProjectWorkDetail {
   updatedAt: number
 }
 
+export interface ProjectMinecraftSubServerEvidence {
+  name: string
+  onlineMillis: number
+  afkMillis: number
+}
+
 export interface ProjectCheckIn {
   id: string
   projectId: string
@@ -123,6 +129,13 @@ export interface ProjectCheckIn {
     effectiveOnlineMillis: number
     periodStart: number
     periodEnd: number
+    /**
+     * 各子服的**累计**时长明细，只作证据附注。
+     *
+     * 与上面三个 millis 字段口径不同：那几个是打卡周期内的窗口值，这份是该玩家在各子服上的全部
+     * 历史累计，两者不可相加。name 为空表示该记录没有子服维度（单机服或旧版上报）。
+     */
+    subServers?: ProjectMinecraftSubServerEvidence[]
   } | null
   reviewStatus: 'APPROVED' | 'REJECTED'
   reviewedByUserId?: string

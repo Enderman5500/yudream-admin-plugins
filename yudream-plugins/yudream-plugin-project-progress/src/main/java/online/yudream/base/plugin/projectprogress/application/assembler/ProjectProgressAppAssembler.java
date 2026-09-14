@@ -46,7 +46,11 @@ public class ProjectProgressAppAssembler {
                 location == null ? null : new ProjectCheckInDTO.LocationDTO(location.address(), location.latitude(), location.longitude()),
                 minecraft == null ? null : new ProjectCheckInDTO.MinecraftEvidenceDTO(minecraft.serverId(), minecraft.playerId(),
                         minecraft.playerName(), minecraft.totalOnlineMillis(), minecraft.totalAfkMillis(), minecraft.effectiveOnlineMillis(),
-                        minecraft.periodStart(), minecraft.periodEnd()),
+                        minecraft.periodStart(), minecraft.periodEnd(),
+                        minecraft.subServers().stream()
+                                .map(subServer -> new ProjectCheckInDTO.MinecraftSubServerDTO(
+                                        subServer.name(), subServer.onlineMillis(), subServer.afkMillis()))
+                                .toList()),
                 record.reviewStatus().name(), record.reviewedByUserId(), record.reviewedAt(),
                 record.createdAt());
     }

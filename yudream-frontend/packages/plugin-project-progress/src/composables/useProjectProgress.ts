@@ -665,11 +665,12 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
   function exportCheckIns() {
     const project = selectedProject.value
     exportCsv(`${project?.name || 'project'}-check-ins.csv`, [
-      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', '有效在线分钟', '附件', '打卡时间'],
+      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', '有效在线分钟', 'MC 子服累计', '附件', '打卡时间'],
       ...checkIns.value.map(checkIn => [
         project?.name || '', userLabel(usersById.value[checkIn.userId]), checkIn.type, checkIn.summary,
         checkIn.location?.address || '', checkIn.minecraft ? serverLabel(checkIn.minecraft.serverId) : '',
         checkIn.minecraft ? String(minutes(checkIn.minecraft.effectiveOnlineMillis)) : '',
+        minecraftSubServerSummary(checkIn.minecraft),
         checkIn.files.map(file => file.filename).join('、'), formatTime(checkIn.createdAt),
       ]),
     ])
@@ -905,6 +906,37 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     return `${Math.floor(value / 60000)} 分钟`
   }
 
+  /** 累计时长的紧凑写法：不足 1 小时按分钟，否则按小时加分钟。 */
+  function durationLabel(value: number) {
+    const totalMinutes = Math.max(0, Math.floor(Number(value || 0) / 60000))
+    if (totalMinutes < 60) {
+      return `${totalMinutes} 分钟`
+    }
+    const hours = Math.floor(totalMinutes / 60)
+    const rest = totalMinutes % 60
+    return rest === 0 ? `${hours} 小时` : `${hours} 小时 ${rest} 分`
+  }
+
+  /**
+   * 打卡证据里的子服累计明细，拼成一行展示文本。
+   *
+   * 与同一张证据的「有效在线」不是一个口径：那是打卡周期内的窗口值，这里是该玩家在各子服上的
+   * **全部历史累计**，两者不可相加，所以这行文案显式带「累计」二字。
+   *
+   * 没有明细时返回空串，界面据此隐藏整行：单机服与旧记录本就没有子服维度，宿主 mcserver 低于
+   * 1.7.0 时插件侧也会降级为空明细。
+   */
+  function minecraftSubServerSummary(minecraft?: ProjectCheckIn['minecraft']) {
+    const subServers = minecraft?.subServers ?? []
+    return subServers
+      .map((item) => {
+        const label = !item.name || item.name === 'default' ? '默认' : item.name
+        const afk = item.afkMillis > 0 ? `（挂机 ${durationLabel(item.afkMillis)}）` : ''
+        return `${label} ${durationLabel(item.onlineMillis)}${afk}`
+      })
+      .join(' · ')
+  }
+
   function formatFileSize(value: number) {
     if (!value) {
       return '-'
@@ -1034,6 +1066,8 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     projectMemberCount,
     formatTime,
     minutes,
+    durationLabel,
+    minecraftSubServerSummary,
     formatFileSize,
     projectName,
     serverLabel,
