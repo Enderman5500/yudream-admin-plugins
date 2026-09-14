@@ -408,9 +408,9 @@ class MinecraftServerAppServiceTest {
     /**
      * 升级期间同一次会话的 JOIN 与 QUIT 可能一个没有子服字段、一个带子服名。
      *
-     * <p>这是本机真实发生过的形态：1.7.0 写入的 JOIN 丢了子服，1.8.0 写入的 QUIT 带着 fabric。
-     * 区间归属按整段决定——优先用开启事件的名字，开启事件为空时退回收尾事件的名字，因此这段会话
-     * 应算在 fabric 上、不算在 paper 上。
+     * <p>这是本机真实发生过的形态：本次发布之前写入的 JOIN 丢了子服，本次发布写入的 QUIT 带着
+     * fabric。区间归属按整段决定——优先用开启事件的名字，开启事件为空时退回收尾事件的名字，因此这段
+     * 会话应算在 fabric 上、不算在 paper 上。
      */
     @Test
     void aMixedIntervalIsAttributedToTheClosingEventWhenTheOpeningEventHasNoSubServer() {
@@ -418,10 +418,10 @@ class MinecraftServerAppServiceTest {
                 .thenReturn(Optional.of(MinecraftPlayerActivity.empty("server-1", "player-1", "Steve", BASE)));
         when(repository.listPlayerActivityEvents(eq("server-1"), eq("player-1"), anyInt(), anyInt()))
                 .thenReturn(List.of(
-                        // 1.7.0 写入：开启事件没有子服维度。
+                        // 本次发布之前写入：开启事件没有子服维度。
                         MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve",
                                 MinecraftPlayerActivityEvent.Type.JOIN, BASE + 10_000),
-                        // 1.8.0 写入：收尾事件带着子服名。
+                        // 本次发布写入：收尾事件带着子服名。
                         MinecraftPlayerActivityEvent.create("server-1", "player-1", "Steve", "fabric",
                                 MinecraftPlayerActivityEvent.Type.QUIT, BASE + 70_000)));
 

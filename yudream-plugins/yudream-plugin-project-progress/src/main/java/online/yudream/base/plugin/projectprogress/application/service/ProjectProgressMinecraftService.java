@@ -58,7 +58,7 @@ public class ProjectProgressMinecraftService {
      *
      * <p>这是**累计**值，与判定所用的窗口值不是同一口径，因此只随证据留存、不参与达标判断。
      *
-     * <p>接口自 minecraft-server 1.7.0 起提供。宿主仍运行更早版本时调用会抛 {@link LinkageError}
+     * <p>接口自 minecraft-server 1.6.0 起提供。宿主仍运行更早版本时调用会抛 {@link LinkageError}
      * 而不是 RuntimeException（该方法在旧接口上不存在），此时按「该能力不可用」降级为空明细：
      * 附带信息缺失不该让玩家这次打卡失败，与项目对软依赖的一贯处理一致。
      */

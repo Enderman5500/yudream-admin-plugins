@@ -43,7 +43,7 @@ import java.util.Set;
 @PluginSpec(
         code = MinecraftServerPlugin.CODE,
         name = "minecraft-server",
-        version = "1.8.0",
+        version = "1.6.0",
         description = "管理 Minecraft 服务器列表、多线地址、在线状态与周目展示。"
 )
 @PluginPermissions({

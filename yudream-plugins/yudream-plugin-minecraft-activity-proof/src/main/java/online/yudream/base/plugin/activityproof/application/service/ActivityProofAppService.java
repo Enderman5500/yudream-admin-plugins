@@ -1082,7 +1082,7 @@ public class ActivityProofAppService {
      * <p>按 {@link #playerIdCandidates(String)} 逐个试，与 {@code minecraftOnlineWindow} 的查找方式
      * 保持一致：同一份玩家记录在 Admin 里可能以带连字符或纯十六进制两种写法存在。
      *
-     * <p>接口自 minecraft-server 1.7.0 起提供。宿主仍运行更早版本时调用抛 {@link LinkageError}
+     * <p>接口自 minecraft-server 1.6.0 起提供。宿主仍运行更早版本时调用抛 {@link LinkageError}
      * 而不是 RuntimeException，此时返回空串让说明保持原样——附带信息缺失不该让核验失败。
      */
     private String minecraftSubServerNote(PluginMinecraftService service, String serverId, ResolvedPlayer player) {
