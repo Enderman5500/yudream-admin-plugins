@@ -12,10 +12,12 @@ fail() {
 search_tree() {
   pattern=$1
   shift
+  # node_modules is a required local artifact (pnpm install before typecheck/build) and can hold
+  # hundreds of MB. Scanning it made the source checks time out on any machine that had built once.
   if command -v rg >/dev/null 2>&1; then
-    rg -n --no-messages "$pattern" "$@" >/dev/null 2>&1
+    rg -n --no-messages -g '!**/node_modules/**' "$pattern" "$@" >/dev/null 2>&1
   else
-    grep -R -n -E -- "$pattern" "$@" >/dev/null 2>&1
+    grep -R -n -E --exclude-dir=node_modules -- "$pattern" "$@" >/dev/null 2>&1
   fi
 }
 
