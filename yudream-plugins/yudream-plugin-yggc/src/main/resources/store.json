@@ -1,3 +1,0 @@
-{
-  "releaseNotes": "1.0.0：首个版本。实现 Yggdrasil API（authserver/sessionserver/profiles/材质）与 Yggdrasil Connect 协议（OAuth 2.0 授权码 + PKCE、设备授权、刷新令牌、ID Token RS256、UserInfo、发现文档与 JWKS），内置 Janus 的授权服务端能力，并提供 OAuth 应用、令牌与个人授权管理界面。"
-}

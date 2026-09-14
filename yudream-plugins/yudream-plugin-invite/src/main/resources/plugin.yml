@@ -1,6 +1,0 @@
-name: invite
-displayName: 邀请码
-description: 外校成员邀请码绑定：一码一人、一人多码、数量不限；绑定后不可自行解绑，删除仅限管理员。
-icon: i-ri:key-2-line
-main: online.yudream.base.plugin.invite.bootstrap.InvitePlugin
-version: 1.0.0
