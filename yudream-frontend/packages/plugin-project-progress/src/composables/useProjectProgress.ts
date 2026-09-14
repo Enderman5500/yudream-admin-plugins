@@ -666,10 +666,11 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
   function exportCheckIns() {
     const project = selectedProject.value
     exportCsv(`${project?.name || 'project'}-check-ins.csv`, [
-      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', '有效在线分钟', 'MC 子服累计', '附件', '打卡时间'],
+      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', 'MC 口径', '有效在线分钟', 'MC 子服累计', '附件', '打卡时间'],
       ...checkIns.value.map(checkIn => [
         project?.name || '', userLabel(usersById.value[checkIn.userId]), checkIn.type, checkIn.summary,
         checkIn.location?.address || '', checkIn.minecraft ? serverLabel(checkIn.minecraft.serverId) : '',
+        checkIn.minecraft ? minecraftScopeLabel(checkIn.minecraft) : '',
         checkIn.minecraft ? String(minutes(checkIn.minecraft.effectiveOnlineMillis)) : '',
         minecraftSubServerSummary(checkIn.minecraft),
         checkIn.files.map(file => file.filename).join('、'), formatTime(checkIn.createdAt),
@@ -920,6 +921,18 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
   }
 
   /**
+   * 这次打卡的「有效在线」是按哪台子服算的。
+   *
+   * 必须写出来：同一台代理上，整服口径会把该玩家在各子服上的时长相加，选某一台子服则只算那一台，
+   * 同一个数字含义完全不同。空值表示整服口径——旧记录（选项存在前留下的）与明确选择「整服」的
+   * 记录都是空值，两者在数据上无法区分，因此都按整服口径如实展示。
+   */
+  function minecraftScopeLabel(minecraft?: ProjectCheckIn['minecraft']) {
+    const subServer = String(minecraft?.subServer ?? '').trim()
+    return subServer ? `子服「${subServer}」` : '整服'
+  }
+
+  /**
    * 打卡证据里的子服累计明细，拼成一行展示文本。
    *
    * 与同一张证据的「有效在线」不是一个口径：那是打卡周期内的窗口值，这里是该玩家在各子服上的
@@ -1090,6 +1103,7 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     formatTime,
     minutes,
     durationLabel,
+    minecraftScopeLabel,
     minecraftSubServerSummary,
     formatFileSize,
     projectName,

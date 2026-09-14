@@ -138,6 +138,12 @@ export interface ProjectCheckIn {
     serverId: string
     playerId: string
     playerName: string
+    /**
+     * 本次判定所用的子服口径；空表示整服（把该玩家在这台服全部子服上的时长相加）。
+     *
+     * 与 subServers 是两件事：这里回答「这次按哪台算」，subServers 回答「时间分布在哪几台」。
+     */
+    subServer?: string
     totalOnlineMillis: number
     totalAfkMillis: number
     effectiveOnlineMillis: number
