@@ -206,6 +206,14 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
                 .toList();
     }
 
+    @Override
+    public List<ProjectProgressEvent> listDetailEvents(String detailId, int page, int size) {
+        return documents.findByField(EVENTS, "detailId", detailId, page, size).stream()
+                .map(this::toEvent)
+                .sorted(Comparator.comparingLong(ProjectProgressEvent::createdAt))
+                .toList();
+    }
+
     private List<ProjectWorkDetail> allDetails() {
         List<ProjectWorkDetail> result = new java.util.ArrayList<>();
         int page = 1;
@@ -301,6 +309,10 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
         document.put("dueAt", detail.dueAt());
         document.put("createdAt", detail.createdAt());
         document.put("updatedAt", detail.updatedAt());
+        // 只在非空时落键：从来没有负责人、或老细节读进来是空表时，文档与改造前逐字节一致。
+        if (!detail.assigneeSince().isEmpty()) {
+            document.put("assigneeSince", detail.assigneeSince());
+        }
         return document;
     }
 
@@ -465,8 +477,38 @@ public class ProjectProgressDocumentRepository implements ProjectProgressReposit
                 fileList(document.get("acceptanceFiles")),
                 longObject(document, "dueAt"),
                 number(document, "createdAt", 0),
-                number(document, "updatedAt", 0)
+                number(document, "updatedAt", 0),
+                // assigneeSince 是后加的键：老文档没有它，读成空表即「接取时刻未知」。
+                assigneeSinceMap(document.get("assigneeSince"))
         );
+    }
+
+    /** 负责人接取时刻表：键是用户 id，值是毫秒；老文档缺这个键，或值不可解析时读成空表。 */
+    private Map<String, Long> assigneeSinceMap(Object value) {
+        if (!(value instanceof Map<?, ?> raw)) {
+            return Map.of();
+        }
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : raw.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            long millis;
+            if (entry.getValue() instanceof Number number) {
+                millis = number.longValue();
+            } else {
+                try {
+                    millis = Long.parseLong(String.valueOf(entry.getValue()).trim());
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+            }
+            String userId = String.valueOf(entry.getKey()).trim();
+            if (!userId.isEmpty() && millis > 0) {
+                result.put(userId, millis);
+            }
+        }
+        return Map.copyOf(result);
     }
 
     private ProjectCheckInRecord toCheckIn(Map<String, Object> document) {

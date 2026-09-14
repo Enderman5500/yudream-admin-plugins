@@ -666,11 +666,12 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
   function exportCheckIns() {
     const project = selectedProject.value
     exportCsv(`${project?.name || 'project'}-check-ins.csv`, [
-      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', 'MC 口径', '有效在线分钟', 'MC 子服累计', '附件', '打卡时间'],
+      ['项目', '打卡人', '类型', '说明', '位置', 'MC 服务器', 'MC 口径', 'MC 统计起点', '有效在线分钟', 'MC 子服累计', '附件', '打卡时间'],
       ...checkIns.value.map(checkIn => [
         project?.name || '', userLabel(usersById.value[checkIn.userId]), checkIn.type, checkIn.summary,
         checkIn.location?.address || '', checkIn.minecraft ? serverLabel(checkIn.minecraft.serverId) : '',
         checkIn.minecraft ? minecraftScopeLabel(checkIn.minecraft) : '',
+        minecraftWindowLabel(checkIn.minecraft),
         checkIn.minecraft ? String(minutes(checkIn.minecraft.effectiveOnlineMillis)) : '',
         minecraftSubServerSummary(checkIn.minecraft),
         checkIn.files.map(file => file.filename).join('、'), formatTime(checkIn.createdAt),
@@ -933,6 +934,25 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
   }
 
   /**
+   * 这次判定的统计起点，形如 `9/14 20:10`；取不到时返回空串。
+   *
+   * 「有效在线」只统计该玩家**接取任务之后**的在线时长，所以窗口起点通常是接取任务的时刻；接取
+   * 时刻未知的老记录仍是打卡周期起点。不写出来，同一个数字看不出是从什么时候开始算的。
+   */
+  function minecraftWindowLabel(minecraft?: ProjectCheckIn['minecraft']) {
+    const start = Number(minecraft?.periodStart || 0)
+    if (!start) {
+      return ''
+    }
+    const date = new Date(start)
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return `${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
+  /**
    * 打卡证据里的子服累计明细，拼成一行展示文本。
    *
    * 与同一张证据的「有效在线」不是一个口径：那是打卡周期内的窗口值，这里是该玩家在各子服上的
@@ -1104,6 +1124,7 @@ export function useProjectProgress(sdk: YuDreamPluginSdk) {
     minutes,
     durationLabel,
     minecraftScopeLabel,
+    minecraftWindowLabel,
     minecraftSubServerSummary,
     formatFileSize,
     projectName,
