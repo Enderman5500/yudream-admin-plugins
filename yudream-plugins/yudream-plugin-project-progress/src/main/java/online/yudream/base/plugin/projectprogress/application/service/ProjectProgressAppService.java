@@ -24,6 +24,7 @@ import online.yudream.base.plugin.projectprogress.domain.aggregate.ProjectProgre
 import online.yudream.base.plugin.projectprogress.domain.aggregate.ProjectWorkDetail;
 import online.yudream.base.plugin.projectprogress.domain.enumerate.ProjectAcceptanceResult;
 import online.yudream.base.plugin.projectprogress.domain.enumerate.ProjectAssignmentMode;
+import online.yudream.base.plugin.projectprogress.domain.enumerate.ProjectCheckInReviewStatus;
 import online.yudream.base.plugin.projectprogress.domain.enumerate.ProjectCheckInType;
 import online.yudream.base.plugin.projectprogress.domain.enumerate.ProjectProgressEventType;
 import online.yudream.base.plugin.projectprogress.domain.repo.ProjectProgressRepository;
@@ -480,15 +481,30 @@ public class ProjectProgressAppService {
     private boolean hasProjectCheckInInCurrentPeriod(ProjectProgressProject project, String userId) {
         long periodStart = currentCheckInPeriodStart(project.minCheckInIntervalMinutes());
         long periodEnd = currentCheckInPeriodEnd(project.minCheckInIntervalMinutes());
-        return allProjectCheckIns(project.id()).stream().anyMatch(record -> record.type() == ProjectCheckInType.MINECRAFT_ONLINE
-                && userId.equals(record.userId()) && record.createdAt() >= periodStart && record.createdAt() < periodEnd);
+        return allProjectCheckIns(project.id()).stream()
+                .anyMatch(record -> countsAsCheckInInPeriod(record, userId, periodStart, periodEnd));
     }
 
     private void ensureNoMinecraftCheckInInPeriod(ProjectProgressProject project, String userId, long periodStart, long periodEnd) {
-        if (allProjectCheckIns(project.id()).stream().anyMatch(record -> record.type() == ProjectCheckInType.MINECRAFT_ONLINE
-                && userId.equals(record.userId()) && record.createdAt() >= periodStart && record.createdAt() < periodEnd)) {
-            throw new IllegalArgumentException("Minecraft check-in has already been submitted for this period");
+        if (allProjectCheckIns(project.id()).stream()
+                .anyMatch(record -> countsAsCheckInInPeriod(record, userId, periodStart, periodEnd))) {
+            throw new IllegalArgumentException("本打卡周期内已提交过 Minecraft 在线时长打卡，不能重复提交");
         }
+    }
+
+    /**
+     * 这条记录是否算作「该用户在本打卡周期内已经打过卡」。
+     *
+     * <p>被驳回的记录不算：驳回的含义就是这次证据不成立、需要重新打。若把它算作已打卡，该用户在本
+     * 周期内既不能手动补打、自动打卡与提醒也会跳过，只能等到下一个周期——驳回反而锁死了打卡。
+     * 需要「这次打卡彻底不存在」时用删除，删除后本判定同样成立。
+     */
+    private boolean countsAsCheckInInPeriod(ProjectCheckInRecord record, String userId, long periodStart, long periodEnd) {
+        return record.type() == ProjectCheckInType.MINECRAFT_ONLINE
+                && userId.equals(record.userId())
+                && record.reviewStatus() != ProjectCheckInReviewStatus.REJECTED
+                && record.createdAt() >= periodStart
+                && record.createdAt() < periodEnd;
     }
 
     private long currentCheckInPeriodStart(int periodMinutes) {
